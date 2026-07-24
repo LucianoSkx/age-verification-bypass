@@ -1,44 +1,44 @@
 # Age Verification Bypass (Userscript)
 
-Port do add-on Firefox [helloyanis/age-verification-bypass](https://github.com/helloyanis/age-verification-bypass) para userscript (Violentmonkey, Tampermonkey, Greasemonkey).
+Port of the Firefox add-on [helloyanis/age-verification-bypass](https://github.com/helloyanis/age-verification-bypass) to a userscript (Violentmonkey, Tampermonkey, Greasemonkey).
 
-## Como instalar
+## Installation
 
-1. Instale [Violentmonkey](https://violentmonkey.github.io/) (recomendado), [Tampermonkey](https://www.tampermonkey.net/) ou [Greasemonkey](https://www.greasespot.net/)
-2. Clique em [instalar](https://raw.githubusercontent.com/LucianoSkx/age-verification-bypass/main/age-verification-bypass.user.js)
-3. Confirme a instalação
+1. Install [Violentmonkey](https://violentmonkey.github.io/) (recommended), [Tampermonkey](https://www.tampermonkey.net/), or [Greasemonkey](https://www.greasespot.net/)
+2. Click [install](https://raw.githubusercontent.com/LucianoSkx/age-verification-bypass/main/age-verification-bypass.user.js)
+3. Confirm installation
 
-## Serviços suportados
+## Supported Services
 
-- **[AgeChecker.net](https://agechecker.net/demo)** — Bypass completo (exceto se o site faz double-check no servidor)
-- **[AgeGO](https://agego.com)** — Integração básica + avançada; modo server-to-server (pode falhar se o site faz checks adicionais)
-- **[AgeVerif.com](https://demo.ageverif.com/)** — Integração básica e avançada (não funciona no fluxo oAuth2)
-- **[AliExpress](https://aliexpress.com/)** — Itens "For adults" (remove blur/modal)
-- **[Bluesky](https://bsky.app)** — Posts sensíveis sem login; mídia revelada ao clicar em "Show"
-- **[Reddit](https://reddit.com)** — Comunidades NSFW (funciona melhor deslogado; recomenda-se [redlib](https://redlib.catsarch.com/))
-- **[Veriff](https://veriff.com)** — Funciona apenas em alguns sites (não espere que funcione sempre)
+- **[AgeChecker.net](https://agechecker.net/demo)** — Full bypass (unless the site does a server-side double-check)
+- **[AgeGO](https://agego.com)** — Basic + advanced integration; server-to-server mode (may fail if site does additional checks)
+- **[AgeVerif.com](https://demo.ageverif.com/)** — Basic and advanced integrations (not oAuth2 flow)
+- **[AliExpress](https://aliexpress.com/)** — "For adults" items (removes blur/modal)
+- **[Bluesky](https://bsky.app)** — Sensitive posts without login; media revealed by clicking "Show"
+- **[Reddit](https://reddit.com)** — NSFW communities (works best logged out; consider [redlib](https://redlib.catsarch.com/) for a fully private Reddit frontend)
+- **[Veriff](https://veriff.com)** — Works on only a few sites (don't expect it to work everywhere)
 
-## Como funciona
+## How It Works
 
-Dois métodos principais:
+Two main methods:
 
-### Reescrita de resposta do servidor
-Intercepta requisições que criariam o popup de verificação e substitui por código que envia automaticamente o callback de "verificação aprovada" ao site. Ex: Bluesky.
+### Rewrite Server Response
+Intercepts requests that would create the age verification popup and replaces them with code that automatically sends the "verification approved" callback to the website. Example: Bluesky.
 
-### Remoção de elementos DOM
-Remove popups, blurs e overlays adicionados quando a página é marcada como NSFW. Ex: AliExpress, Reddit.
+### Hide and Remove DOM Elements
+Removes popups, blurs, and overlays added when a page is marked NSFW. Example: AliExpress, Reddit.
 
-**Nenhum dado é coletado**. Não há rastreamento de quais sites você visita.
+**No data is collected.** There is no tracking of which sites you visit.
 
-## Atualizações
+## Updates
 
-O script verifica atualizações automaticamente via `@updateURL`/`@downloadURL` apontando para este repositório.
+The script checks for updates automatically via `@updateURL`/`@downloadURL` pointing to this repository.
 
-## Créditos
+## Credits
 
 - Original: [helloyanis](https://github.com/helloyanis) — [Firefox add-on](https://github.com/helloyanis/age-verification-bypass)
 - Port: [LucianoSkx](https://github.com/LucianoSkx)
 
-## Licença
+## License
 
 MIT
