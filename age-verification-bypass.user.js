@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.0.1
+// @version      1.1.0
 // @description  Userscript que pula verificação de idade (port do Firefox add-on de helloyanis) / Age verification bypass userscript (port of helloyanis' Firefox add-on)
 // @author       helloyanis (original), LucianoSkx (port)
 // @match        *://*/*
