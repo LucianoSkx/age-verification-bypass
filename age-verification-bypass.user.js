@@ -2,7 +2,8 @@
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
 // @version      1.5.0
-// @description  Age verification bypass userscript (port of helloyanis' Firefox add-on)
+// @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit and Veriff. Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
+// @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit e Veriff. Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
 // @author       helloyanis (original), LucianoSkx (port)
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
