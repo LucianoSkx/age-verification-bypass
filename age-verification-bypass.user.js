@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.4.1
+// @version      1.5.0
 // @description  Age verification bypass userscript (port of helloyanis' Firefox add-on)
 // @author       helloyanis (original), LucianoSkx (port)
 // @match        *://*/*
@@ -325,11 +325,51 @@
 
         console.log("[aliexpress.com bypass] Running");
 
+        GM_addStyle(`
+            .card-dsa-wrapper img {
+               filter: none !important; -webkit-filter: none !important;
+            }
+            .dsa--visible--wrapper img {
+               filter: none !important; -webkit-filter: none !important;
+            }
+        `);
+
         function cleanElements() {
-            document.querySelectorAll(".ls_ke, .ho_g9, img[src='https://ae-pic-a1.aliexpress-media.com/kf/S082ae95bce89462b9548a1d53f222ab4p/72x72.png'], .J_SAFETY_FILER_MODAL, ._1FlkA").forEach(el => el.style.display = "none");
-            document.querySelectorAll("img.nf_bj").forEach(el => el.classList.remove("nf_bj"));
+            // Popup on the product page
+            document.querySelectorAll(".J_SAFETY_FILER_MODAL").forEach(el => el.style.display = "none");
+
+            // Remove the class that keeps the blur/overlay on product cards
             document.querySelectorAll(".card-dsa-wrapper").forEach(el => el.classList.remove("card-dsa-wrapper"));
             document.querySelectorAll(".dsa--visible--wrapper").forEach(el => el.classList.remove("dsa--visible--wrapper"));
+
+            // Crossed eye icon in search results
+            document.querySelectorAll("img[src='https://ae-pic-a1.aliexpress-media.com/kf/S082ae95bce89462b9548a1d53f222ab4p/72x72.png']").forEach(el => el.style.display = "none");
+
+            // Blur on search results mobile
+            document.querySelectorAll("div[data-anc='body']>div>div>div>div>div>div, div[data-spm='platformRecommendH5']>div>div>div").forEach(el => el.style.display = "none");
+
+            // Remove the overlay over the products that opens the popup
+            const cardList = document.querySelector("#card-list");
+            if (cardList) {
+                for (const item of cardList.children) {
+                    const wrapper = item.querySelector(":scope > div");
+                    if (!wrapper) continue;
+                    const divs = wrapper.querySelectorAll(":scope > div");
+                    if (divs.length === 2) {
+                        divs[1].style.display = "none";
+                    }
+                }
+            }
+
+            // Recommended products on the product page
+            document.querySelectorAll(".slick-slide").forEach(item => {
+                const wrapper = item.querySelector(":scope > div > div > div");
+                if (!wrapper) return;
+                const divs = wrapper.querySelectorAll(":scope > div");
+                if (divs.length === 2) {
+                    divs[1].style.display = "none";
+                }
+            });
         }
 
         cleanElements();
@@ -337,16 +377,16 @@
         const observer = new MutationObserver(() => cleanElements());
         observer.observe(document.documentElement, { childList: true, subtree: true });
 
-        // Also intercept the exposure event and fireyejs requests
+        // Re-run whenever a new batch of products is loaded
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
             const [url] = args;
             if (url.includes('aplus.aliexpress.com/Product.Exposure.Event') || url.includes('assets.aliexpress-media.com/g/AWSC/fireyejs/')) {
                 try {
-                    await originalFetch.apply(this, args);
-                } catch (e) {}
-                setTimeout(cleanElements, 0);
-                return new Response('', { status: 200 });
+                    return await originalFetch.apply(this, args);
+                } finally {
+                    setTimeout(cleanElements, 0);
+                }
             }
             return originalFetch.apply(this, args);
         };
@@ -360,7 +400,17 @@
 
         console.log("[bsky.app bypass] Running");
 
-        // Intercept labeler getServices
+        // Spoof label source to look like it came from Bluesky's automod,
+        // which lets people see self-labelled (18+) posts even without login.
+        function spoofBlueskyAutomod(post) {
+            if (post?.labels) {
+                post.labels.forEach(label => {
+                    label.src = "did:plc:ar7c4by46qjdydhdevvrndac";
+                });
+            }
+            return post;
+        }
+
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
             const [url] = args;
@@ -374,10 +424,10 @@
                             view.policies.labelValueDefinitions.push({
                                 adultOnly: false,
                                 blurs: "media",
-                                defaultSetting: "warn",
+                                defaultSetting: "show",
                                 identifier: label,
                                 locales: [{
-                                    description: `This content is labeled as ${label}.`,
+                                    description: `This content is labeled as ${label} and is unlocked by the age-verification bypass. If it contains media, click on "show" to view it.`,
                                     lang: "en",
                                     name: label
                                 }],
@@ -399,6 +449,31 @@
                     const response = await originalFetch.apply(this, args);
                     const data = await response.clone().json();
                     data.regions = [];
+                    return new Response(JSON.stringify(data), {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: response.headers
+                    });
+                } catch (e) {
+                    console.error("[bsky.app bypass] Error:", e);
+                }
+            }
+            if (url.includes('app.bsky.unspecced.getPostThreadV2')
+                || url.includes('app.bsky.feed.getAuthorFeed')
+                || url.includes('app.bsky.actor.getProfile')
+                || url.includes('app.bsky.feed.getFeed')) {
+                try {
+                    const response = await originalFetch.apply(this, args);
+                    const data = await response.clone().json();
+                    if (url.includes('getProfile')) {
+                        data.labels = [];
+                    } else if (url.includes('getPostThreadV2')) {
+                        data?.thread?.forEach(thread => { thread.value.post = spoofBlueskyAutomod(thread.value.post); });
+                    } else if (url.includes('getAuthorFeed')) {
+                        data?.feed?.forEach(feed => { feed.post = spoofBlueskyAutomod(feed.post); });
+                    } else if (url.includes('getFeed')) {
+                        data?.feed?.forEach(feed => { feed.post = spoofBlueskyAutomod(feed.post); });
+                    }
                     return new Response(JSON.stringify(data), {
                         status: response.status,
                         statusText: response.statusText,
@@ -430,12 +505,14 @@
 
         console.log("[reddit.com bypass] Running");
 
-        const blockedId = "configured-xpromo-blocking_xpromo_nsfw_blocking_desktop";
+        const nsfwSubredditPopup = "configured-xpromo-blocking_xpromo_nsfw_blocking_desktop";
+        const loginUpsell = "desktop-dynamic-upsell-dialog";
         const promptContainerTagName = "xpromo-nsfw-blocking-container";
         const TEST_IDS = ["nsfw-bypassable-modal-client-css", "experiences-client-css"];
 
         function removeRedditPopups() {
-            if (document.getElementById(blockedId)) document.getElementById(blockedId).remove();
+            if (document.getElementById(nsfwSubredditPopup)) document.getElementById(nsfwSubredditPopup).remove();
+            if (document.getElementById(loginUpsell)) document.getElementById(loginUpsell).remove();
             const container = document.querySelector(promptContainerTagName);
             if (container?.shadowRoot?.querySelector(".prompt")) container.shadowRoot.querySelector(".prompt").remove();
 
@@ -451,11 +528,11 @@
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (node.nodeType !== Node.ELEMENT_NODE) continue;
-                    if (node.id === blockedId) { node.remove(); continue; }
+                    if (node.id === nsfwSubredditPopup || node.id === loginUpsell) { node.remove(); continue; }
                     if (node.tagName === promptContainerTagName.toUpperCase()) {
                         node.shadowRoot?.querySelector?.(".prompt")?.remove();
                     }
-                    const target = node.querySelector?.(`#${CSS.escape(blockedId)}`);
+                    const target = node.querySelector?.(`#${CSS.escape(nsfwSubredditPopup)}`);
                     if (target) target.remove();
                     const target2 = node.querySelector?.(promptContainerTagName);
                     if (target2 && target2.shadowRoot) {
