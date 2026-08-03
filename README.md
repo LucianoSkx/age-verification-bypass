@@ -13,8 +13,8 @@ Port of the Firefox add-on [helloyanis/age-verification-bypass](https://github.c
 - **[AgeChecker.net](https://agechecker.net/demo)** — Full bypass (unless the site does a server-side double-check)
 - **[AgeGO](https://agego.com)** — Basic + advanced integration; server-to-server mode (may fail if site does additional checks)
 - **[AgeVerif.com](https://demo.ageverif.com/)** — Basic and advanced integrations (not oAuth2 flow)
-- **[AliExpress](https://aliexpress.com/)** — "For adults" items (removes blur/modal)
-- **[Bluesky](https://bsky.app)** — Sensitive posts without login; media revealed by clicking "Show"
+- **[AliExpress](https://aliexpress.com/)** — "For adults" items (removes blur/modal/overlays, including suggested products)
+- **[Bluesky](https://bsky.app)** — Sensitive posts without login (automod + self-labelled posts); media revealed by clicking "Show"
 - **[Reddit](https://reddit.com)** — NSFW communities (works best logged out; consider [redlib](https://redlib.catsarch.com/) for a fully private Reddit frontend)
 - **[Veriff](https://veriff.com)** — Works on only a few sites (don't expect it to work everywhere)
 
