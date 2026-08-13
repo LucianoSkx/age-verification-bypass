@@ -16,7 +16,9 @@ Port of the Firefox add-on [helloyanis/age-verification-bypass](https://github.c
 - **[AliExpress](https://aliexpress.com/)** — "For adults" items (removes blur/modal/overlays, including suggested products)
 - **[Bluesky](https://bsky.app)** — Sensitive posts without login (automod + self-labelled posts); media revealed by clicking "Show"
 - **[Reddit](https://reddit.com)** — NSFW communities (works best logged out; consider [redlib](https://redlib.catsarch.com/) for a fully private Reddit frontend)
+- **[SpankBang](https://spankbang.com)** — View videos even when logged out (removes blur/overlay and neutralizes the age verification modal)
 - **[Veriff](https://veriff.com)** — Works on only a few sites (don't expect it to work everywhere)
+- **[x.com / Twitter](https://x.com)** — **Experimental / WIP.** Attempts to unblur NSFW posts via the GraphQL API; does not work reliably yet (ported as-is from upstream, which does not enable it)
 
 ## How It Works
 

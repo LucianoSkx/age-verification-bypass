@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.5.0
-// @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit and Veriff. Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
-// @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit e Veriff. Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
+// @version      1.6.0
+// @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang and Veriff (plus experimental x.com support). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
+// @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang e Veriff (mais suporte experimental a x.com). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
 // @icon         https://raw.githubusercontent.com/helloyanis/age-verification-bypass/main/icon.svg
 // @author       helloyanis (original), LucianoSkx (port)
 // @match        *://*/*
@@ -647,6 +647,76 @@ window.veriffSDK = {
                 }
             }
 
+            return originalFetch.apply(this, args);
+        };
+    })();
+
+    // ============================
+    // spankbang.com
+    // ============================
+    (function () {
+        if (!/spankbang\.com/.test(window.location.hostname)) return;
+
+        console.log("[spankbang.com bypass] Running");
+
+        // Neutralize the age verification modal functions so they never show.
+        // Injected into page context as early as possible (document-start).
+        function neutralize() {
+            const script = document.createElement("script");
+            script.textContent = `
+                window.showAdvancedAgeVerification = function() {};
+                window.showAvRegistrationModal = function() {};
+            `;
+            (document.head || document.documentElement).appendChild(script);
+        }
+        neutralize();
+
+        function cleanSpankbang() {
+            const safetyBlur = document.querySelector("#safety-blur");
+            if (safetyBlur) safetyBlur.setAttribute("style", "display: none");
+
+            document.querySelectorAll(".strong-blur").forEach(el => el.classList.remove("strong-blur"));
+
+            // Remove the "18+" label from thumbnails
+            document.querySelectorAll("div[data-testid='video-item']>a>picture>div").forEach(node => node.remove());
+        }
+        cleanSpankbang();
+
+        const observer = new MutationObserver(() => cleanSpankbang());
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+    })();
+
+    // ============================
+    // x.com (Twitter) — EXPERIMENTAL / WIP
+    // ============================
+    (function () {
+        if (!/(^|\.)x\.com$/.test(window.location.hostname) && !/(^|\.)twitter\.com$/.test(window.location.hostname)) return;
+
+        console.log("[x.com bypass] Running (EXPERIMENTAL - WIP, may not work)");
+
+        const originalFetch = window.fetch;
+        window.fetch = async function (...args) {
+            const [url] = args;
+            if (typeof url === "string" && url.includes("x.com/i/api/graphql/") && url.includes("TweetResultByRestId")) {
+                try {
+                    const response = await originalFetch.apply(this, args);
+                    const data = await response.clone().json();
+                    if (data?.data?.tweetResult?.result?.mediaVisibilityResults) {
+                        data.data.tweetResult.result = { ...data.data.tweetResult.result.tweet };
+                        data.data.tweetResult.result.__typename = "Tweet";
+                        data.data.tweetResult.result.core.user_results.result.profile_metadata.profile_interstitial_type = "";
+                        data.data.tweetResult.result.legacy.possibly_sensitive = false;
+                        delete data.data.tweetResult.result.tweet;
+                    }
+                    return new Response(JSON.stringify(data), {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: response.headers
+                    });
+                } catch (e) {
+                    console.error("[x.com bypass] Error:", e);
+                }
+            }
             return originalFetch.apply(this, args);
         };
     })();
