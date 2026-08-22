@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.6.0
+// @version      1.6.1
 // @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang and Veriff (plus experimental x.com support). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
 // @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang e Veriff (mais suporte experimental a x.com). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
 // @icon         https://raw.githubusercontent.com/helloyanis/age-verification-bypass/main/icon.svg
@@ -30,24 +30,22 @@
     // agechecker.net
     // ============================
     (function () {
-        if (!/cdn\.agechecker\.net/.test(window.location.hostname) && !/api\.agechecker\.net|sa\.agechecker\.net/.test(window.location.hostname)) return;
+        if (!/(^|\.)agechecker\.net$/.test(window.location.hostname)) return;
 
         console.log("[agechecker.net bypass] Running");
 
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
-            const [url] = args;
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
             if (url.includes('cdn.agechecker.net/static/popup/v1/popup.js')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
-                    const text = await response.clone().text();
-
                     const modified = `(function (w) {
   const config = w.AgeCheckerConfig || {};
 
   function complete() {
     if (typeof config.onstatuschanged === 'function') {
-      config.onstatuschange({"uuid": crypto.randomUUID(), "status": "accepted"});
+      config.onstatuschanged({"uuid": crypto.randomUUID(), "status": "accepted"});
     }
     if (config.redirect_url) {
       w.location.href = config.redirect_url;
@@ -78,11 +76,12 @@
                     });
                 } catch (e) {
                     console.error("[agechecker.net bypass] Error:", e);
+                    return response;
                 }
             }
             if (url.includes('api.agechecker.net/v1/create') || url.includes('sa.agechecker.net/ac_create')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
                     const uuid = crypto.randomUUID();
                     const modified = JSON.stringify({ uuid, status: "accepted" });
                     return new Response(modified, {
@@ -92,6 +91,7 @@
                     });
                 } catch (e) {
                     console.error("[agechecker.net bypass] Error:", e);
+                    return response;
                 }
             }
             return originalFetch.apply(this, args);
@@ -102,19 +102,17 @@
     // agego.com
     // ============================
     (function () {
-        if (!/verifycdn\.agego\.com/.test(window.location.hostname) && !/myapi\.agego\.com/.test(window.location.hostname)) return;
+        if (!/^(verifycdn|myapi)\.agego\.com$/.test(window.location.hostname)) return;
 
         console.log("[agego.com bypass] Running");
 
-        if (/verifycdn\.agego\.com/.test(window.location.hostname)) {
+        if (/^verifycdn\.agego\.com$/.test(window.location.hostname)) {
             const originalFetch = window.fetch;
             window.fetch = async function (...args) {
-                const [url] = args;
+                const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
                 if (url.includes('verifycdn.agego.com/v1/verify.js')) {
+                    const response = await originalFetch.apply(this, args);
                     try {
-                        const response = await originalFetch.apply(this, args);
-                        const text = await response.clone().text();
-
                         const modified = `(function () {
   const queue = window.AGEGO?.e;
   if (!Array.isArray(queue) || queue.length === 0) {
@@ -140,8 +138,8 @@
   if (typeof events.onVerifiedBefore === "function") {
     console.debug("[agego.com bypass] Calling onVerifiedBefore callback.");
     events.onVerifiedBefore();
-  } else if (typeof events.onAPIVerify === "function") {
-    console.debug("[agego.com bypass] Calling onAPIVerify callback.");
+  } else if (typeof events.onAgeVerify === "function") {
+    console.debug("[agego.com bypass] Calling onAgeVerify callback.");
     events.onAgeVerify();
   } else if (typeof events.onVerificationFlowEnd === "function") {
     console.debug("[agego.com bypass] Calling onVerificationFlowEnd callback.");
@@ -156,16 +154,17 @@
                         });
                     } catch (e) {
                         console.error("[agego.com bypass] Error:", e);
+                        return response;
                     }
                 }
                 return originalFetch.apply(this, args);
             };
         }
 
-        if (/myapi\.agego\.com/.test(window.location.hostname)) {
+        if (/^myapi\.agego\.com$/.test(window.location.hostname)) {
             const originalFetch = window.fetch;
             window.fetch = async function (...args) {
-                const [url] = args;
+                const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
                 if (url.includes('myapi.agego.com/s2s/start/')) {
                     try {
                         const redirectUrl = new URL(url).searchParams.get("returnto");
@@ -186,18 +185,16 @@
     // ageverif.com
     // ============================
     (function () {
-        if (!/www\.ageverif\.com/.test(window.location.hostname)) return;
+        if (!/(^|\.)ageverif\.com$/.test(window.location.hostname)) return;
 
         console.log("[ageverif.com bypass] Running");
 
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
-            const [url] = args;
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
             if (url.includes('www.ageverif.com/checker.js')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
-                    const text = await response.clone().text();
-
                     const modified = `(function () {
   function parseQuery(url) {
     const params = {};
@@ -313,6 +310,7 @@
                     });
                 } catch (e) {
                     console.error("[ageverif.com bypass] Error:", e);
+                    return response;
                 }
             }
             return originalFetch.apply(this, args);
@@ -323,7 +321,7 @@
     // aliexpress.com
     // ============================
     (function () {
-        if (!/aliexpress/.test(window.location.hostname)) return;
+        if (!/(^|\.)aliexpress\./.test(window.location.hostname)) return;
 
         console.log("[aliexpress.com bypass] Running");
 
@@ -382,7 +380,7 @@
         // Re-run whenever a new batch of products is loaded
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
-            const [url] = args;
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
             if (url.includes('aplus.aliexpress.com/Product.Exposure.Event') || url.includes('assets.aliexpress-media.com/g/AWSC/fireyejs/')) {
                 try {
                     return await originalFetch.apply(this, args);
@@ -398,7 +396,7 @@
     // bsky.app (Bluesky)
     // ============================
     (function () {
-        if (!/bsky\.(app|social)/.test(window.location.hostname) && !/public\.api\.bsky\.app/.test(window.location.hostname)) return;
+        if (!/(^|\.)bsky\.(app|social)$/.test(window.location.hostname)) return;
 
         console.log("[bsky.app bypass] Running");
 
@@ -415,10 +413,10 @@
 
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
-            const [url] = args;
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
             if (url.includes('public.api.bsky.app/xrpc/app.bsky.labeler.getServices')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
                     const data = await response.clone().json();
                     data.views.forEach(view => {
                         view.policies.labelValueDefinitions = [];
@@ -444,11 +442,12 @@
                     });
                 } catch (e) {
                     console.error("[bsky.app bypass] Error:", e);
+                    return response;
                 }
             }
             if (url.includes('public.api.bsky.app/xrpc/app.bsky.ageassurance.getConfig')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
                     const data = await response.clone().json();
                     data.regions = [];
                     return new Response(JSON.stringify(data), {
@@ -458,14 +457,15 @@
                     });
                 } catch (e) {
                     console.error("[bsky.app bypass] Error:", e);
+                    return response;
                 }
             }
             if (url.includes('app.bsky.unspecced.getPostThreadV2')
                 || url.includes('app.bsky.feed.getAuthorFeed')
                 || url.includes('app.bsky.actor.getProfile')
                 || url.includes('app.bsky.feed.getFeed')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
                     const data = await response.clone().json();
                     if (url.includes('getProfile')) {
                         data.labels = [];
@@ -483,6 +483,7 @@
                     });
                 } catch (e) {
                     console.error("[bsky.app bypass] Error:", e);
+                    return response;
                 }
             }
             return originalFetch.apply(this, args);
@@ -503,7 +504,7 @@
     // reddit.com
     // ============================
     (function () {
-        if (!/reddit/.test(window.location.hostname)) return;
+        if (!/(^|\.)reddit\.com$/.test(window.location.hostname)) return;
 
         console.log("[reddit.com bypass] Running");
 
@@ -521,7 +522,7 @@
             document.querySelectorAll(`style[data-testid]`).forEach(el => {
                 if (TEST_IDS.includes(el.getAttribute("data-testid"))) el.remove();
             });
-            Array.from(document.querySelectorAll("style")).filter(item => item.innerText?.includes(".rpl-scroll-lock"))[0]?.remove();
+            document.querySelectorAll("style").forEach(el => { if (el.textContent?.includes(".rpl-scroll-lock")) el.remove(); });
         }
 
         removeRedditPopups();
@@ -558,33 +559,32 @@
     // veriff.me
     // ============================
     (function () {
-        if (!/veriff\.(me|com)/.test(window.location.hostname) && !/cdn\.veriff\.(me|com)/.test(window.location.hostname)) return;
+        if (!/(^|\.)veriff\.(me|com)$/.test(window.location.hostname)) return;
 
         console.log("[veriff.me bypass] Running");
 
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
-            const [url] = args;
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
 
             // Block session creation and redirect to callback
             if (url.includes('saas.veriff.com/api/v2/sessions')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
                     const data = await response.clone().json();
                     if (data.vendorIntegration?.callback) {
                         window.location.href = data.vendorIntegration.callback;
                     }
-                    return response;
                 } catch (e) {
                     console.error("[veriff.me bypass] Error:", e);
                 }
+                return response;
             }
 
             // Spoof JS SDK
             if (url.includes('cdn.veriff.me/sdk/js/1.5/veriff.min.js')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
-                    const text = await response.clone().text();
                     const modified = `(function (w) {
     function createResponse() {
         return {
@@ -617,13 +617,14 @@
                     });
                 } catch (e) {
                     console.error("[veriff.me bypass] Error:", e);
+                    return response;
                 }
             }
 
             // Spoof Incontext SDK
             if (url.includes('cdn.veriff.me/incontext/js/v2.5.0/veriff.js')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
                     const modified = `const MESSAGES = {
   STARTED: "STARTED",
   FINISHED: "FINISHED",
@@ -644,6 +645,7 @@ window.veriffSDK = {
                     });
                 } catch (e) {
                     console.error("[veriff.me bypass] Error:", e);
+                    return response;
                 }
             }
 
@@ -655,7 +657,7 @@ window.veriffSDK = {
     // spankbang.com
     // ============================
     (function () {
-        if (!/spankbang\.com/.test(window.location.hostname)) return;
+        if (!/(^|\.)spankbang\.com$/.test(window.location.hostname)) return;
 
         console.log("[spankbang.com bypass] Running");
 
@@ -696,17 +698,18 @@ window.veriffSDK = {
 
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
-            const [url] = args;
-            if (typeof url === "string" && url.includes("x.com/i/api/graphql/") && url.includes("TweetResultByRestId")) {
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
+            if (url.includes("x.com/i/api/graphql/") && url.includes("TweetResultByRestId")) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
                     const data = await response.clone().json();
-                    if (data?.data?.tweetResult?.result?.mediaVisibilityResults) {
-                        data.data.tweetResult.result = { ...data.data.tweetResult.result.tweet };
+                    const result = data?.data?.tweetResult?.result;
+                    if (result?.mediaVisibilityResults && result.tweet) {
+                        data.data.tweetResult.result = { ...result.tweet };
                         data.data.tweetResult.result.__typename = "Tweet";
-                        data.data.tweetResult.result.core.user_results.result.profile_metadata.profile_interstitial_type = "";
-                        data.data.tweetResult.result.legacy.possibly_sensitive = false;
-                        delete data.data.tweetResult.result.tweet;
+                        const coreUser = data.data.tweetResult.result.core?.user_results?.result;
+                        if (coreUser?.profile_metadata) coreUser.profile_metadata.profile_interstitial_type = "";
+                        if (data.data.tweetResult.result.legacy) data.data.tweetResult.result.legacy.possibly_sensitive = false;
                     }
                     return new Response(JSON.stringify(data), {
                         status: response.status,
@@ -715,6 +718,7 @@ window.veriffSDK = {
                     });
                 } catch (e) {
                     console.error("[x.com bypass] Error:", e);
+                    return response;
                 }
             }
             return originalFetch.apply(this, args);
