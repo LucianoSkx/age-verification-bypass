@@ -1,24 +1,17 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.6.1
+// @version      1.6.2
 // @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang and Veriff (plus experimental x.com support). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
 // @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang e Veriff (mais suporte experimental a x.com). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
 // @icon         https://raw.githubusercontent.com/helloyanis/age-verification-bypass/main/icon.svg
 // @author       helloyanis (original), LucianoSkx (port)
 // @match        *://*/*
-// @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
-// @grant        GM_getValue
-// @grant        GM_setValue
-// @grant        GM_registerMenuCommand
-// @grant        GM_unregisterMenuCommand
-// @grant        GM_openInTab
-// @grant        GM_info
 // @run-at       document-start
 // @license      MIT
-// @homepageURL  https://github.com/helloyanis/age-verification-bypass
-// @supportURL   https://github.com/helloyanis/age-verification-bypass/issues
+// @homepageURL  https://github.com/LucianoSkx/age-verification-bypass
+// @supportURL   https://github.com/LucianoSkx/age-verification-bypass/issues
 // @updateURL    https://raw.githubusercontent.com/LucianoSkx/age-verification-bypass/main/age-verification-bypass.user.js
 // @downloadURL  https://raw.githubusercontent.com/LucianoSkx/age-verification-bypass/main/age-verification-bypass.user.js
 // ==/UserScript==
