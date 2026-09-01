@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.7.1
+// @version      1.7.2
 // @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (plus experimental x.com and Tor hints for rule34/xHamster). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
 // @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (mais suporte experimental a x.com e dicas Tor para rule34/xHamster). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
 // @icon         https://raw.githubusercontent.com/helloyanis/age-verification-bypass/main/icon.svg
@@ -769,34 +769,16 @@ window.veriffSDK = {
             if (String(tagName).toLowerCase() === "script") {
                 const origSetAttr = el.setAttribute;
                 el.setAttribute = function (name, value) {
-                    if (String(name).toLowerCase() === "src" && String(value).includes(BLOCK_URL)) {
-                        console.log("[cosxplay.com bypass] Blocked createElement src:", value);
-                        return;
-                    }
-                    if (String(name).toLowerCase() === "src" && String(value).includes("assets/js/age.js")) {
-                        console.log("[cosxplay.com bypass] Blocked createElement src (pattern):", value);
-                        return;
+                    if (String(name).toLowerCase() === "src") {
+                        if (String(value).includes(BLOCK_URL) || String(value).includes("assets/js/age.js")) {
+                            console.log("[cosxplay.com bypass] Blocked script src:", value);
+                            el.type = "javascript/blocked";
+                            el.remove();
+                            return;
+                        }
                     }
                     return origSetAttr.apply(this, arguments);
                 };
-                try {
-                    let blockedSrc = "";
-                    Object.defineProperty(el, "src", {
-                        get: function () { return blockedSrc; },
-                        set: function (v) {
-                            if (String(v).includes(BLOCK_URL) || String(v).includes("assets/js/age.js")) {
-                                console.log("[cosxplay.com bypass] Blocked script.src setter:", v);
-                                blockedSrc = "";
-                                el.type = "javascript/blocked";
-                                el.remove();
-                                return;
-                            }
-                            blockedSrc = String(v);
-                            try { el.setAttribute("src", blockedSrc); } catch (_) {}
-                        },
-                        configurable: true
-                    });
-                } catch (_) {}
             }
             return el;
         };
