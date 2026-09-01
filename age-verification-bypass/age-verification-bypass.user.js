@@ -1,22 +1,17 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.0.1
-// @description  Userscript que pula verificação de idade (port do Firefox add-on de helloyanis) / Age verification bypass userscript (port of helloyanis' Firefox add-on)
+// @version      1.7.0
+// @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (plus experimental x.com and Tor hints for rule34/xHamster). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
+// @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (mais suporte experimental a x.com e dicas Tor para rule34/xHamster). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
+// @icon         https://raw.githubusercontent.com/helloyanis/age-verification-bypass/main/icon.svg
 // @author       helloyanis (original), LucianoSkx (port)
 // @match        *://*/*
-// @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
-// @grant        GM_getValue
-// @grant        GM_setValue
-// @grant        GM_registerMenuCommand
-// @grant        GM_unregisterMenuCommand
-// @grant        GM_openInTab
-// @grant        GM_info
 // @run-at       document-start
 // @license      MIT
-// @homepageURL  https://github.com/helloyanis/age-verification-bypass
-// @supportURL   https://github.com/helloyanis/age-verification-bypass/issues
+// @homepageURL  https://github.com/LucianoSkx/age-verification-bypass
+// @supportURL   https://github.com/LucianoSkx/age-verification-bypass/issues
 // @updateURL    https://raw.githubusercontent.com/LucianoSkx/age-verification-bypass/main/age-verification-bypass.user.js
 // @downloadURL  https://raw.githubusercontent.com/LucianoSkx/age-verification-bypass/main/age-verification-bypass.user.js
 // ==/UserScript==
@@ -28,24 +23,22 @@
     // agechecker.net
     // ============================
     (function () {
-        if (!/cdn\.agechecker\.net/.test(window.location.hostname) && !/api\.agechecker\.net|sa\.agechecker\.net/.test(window.location.hostname)) return;
+        if (!/(^|\.)agechecker\.net$/.test(window.location.hostname)) return;
 
         console.log("[agechecker.net bypass] Running");
 
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
-            const [url] = args;
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
             if (url.includes('cdn.agechecker.net/static/popup/v1/popup.js')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
-                    const text = await response.clone().text();
-
                     const modified = `(function (w) {
   const config = w.AgeCheckerConfig || {};
 
   function complete() {
     if (typeof config.onstatuschanged === 'function') {
-      config.onstatuschange({"uuid": crypto.randomUUID(), "status": "accepted"});
+      config.onstatuschanged({"uuid": crypto.randomUUID(), "status": "accepted"});
     }
     if (config.redirect_url) {
       w.location.href = config.redirect_url;
@@ -76,11 +69,12 @@
                     });
                 } catch (e) {
                     console.error("[agechecker.net bypass] Error:", e);
+                    return response;
                 }
             }
             if (url.includes('api.agechecker.net/v1/create') || url.includes('sa.agechecker.net/ac_create')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
                     const uuid = crypto.randomUUID();
                     const modified = JSON.stringify({ uuid, status: "accepted" });
                     return new Response(modified, {
@@ -90,6 +84,7 @@
                     });
                 } catch (e) {
                     console.error("[agechecker.net bypass] Error:", e);
+                    return response;
                 }
             }
             return originalFetch.apply(this, args);
@@ -100,19 +95,17 @@
     // agego.com
     // ============================
     (function () {
-        if (!/verifycdn\.agego\.com/.test(window.location.hostname) && !/myapi\.agego\.com/.test(window.location.hostname)) return;
+        if (!/^(verifycdn|myapi)\.agego\.com$/.test(window.location.hostname)) return;
 
         console.log("[agego.com bypass] Running");
 
-        if (/verifycdn\.agego\.com/.test(window.location.hostname)) {
+        if (/^verifycdn\.agego\.com$/.test(window.location.hostname)) {
             const originalFetch = window.fetch;
             window.fetch = async function (...args) {
-                const [url] = args;
+                const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
                 if (url.includes('verifycdn.agego.com/v1/verify.js')) {
+                    const response = await originalFetch.apply(this, args);
                     try {
-                        const response = await originalFetch.apply(this, args);
-                        const text = await response.clone().text();
-
                         const modified = `(function () {
   const queue = window.AGEGO?.e;
   if (!Array.isArray(queue) || queue.length === 0) {
@@ -138,8 +131,8 @@
   if (typeof events.onVerifiedBefore === "function") {
     console.debug("[agego.com bypass] Calling onVerifiedBefore callback.");
     events.onVerifiedBefore();
-  } else if (typeof events.onAPIVerify === "function") {
-    console.debug("[agego.com bypass] Calling onAPIVerify callback.");
+  } else if (typeof events.onAgeVerify === "function") {
+    console.debug("[agego.com bypass] Calling onAgeVerify callback.");
     events.onAgeVerify();
   } else if (typeof events.onVerificationFlowEnd === "function") {
     console.debug("[agego.com bypass] Calling onVerificationFlowEnd callback.");
@@ -154,16 +147,17 @@
                         });
                     } catch (e) {
                         console.error("[agego.com bypass] Error:", e);
+                        return response;
                     }
                 }
                 return originalFetch.apply(this, args);
             };
         }
 
-        if (/myapi\.agego\.com/.test(window.location.hostname)) {
+        if (/^myapi\.agego\.com$/.test(window.location.hostname)) {
             const originalFetch = window.fetch;
             window.fetch = async function (...args) {
-                const [url] = args;
+                const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
                 if (url.includes('myapi.agego.com/s2s/start/')) {
                     try {
                         const redirectUrl = new URL(url).searchParams.get("returnto");
@@ -184,18 +178,16 @@
     // ageverif.com
     // ============================
     (function () {
-        if (!/www\.ageverif\.com/.test(window.location.hostname)) return;
+        if (!/(^|\.)ageverif\.com$/.test(window.location.hostname)) return;
 
         console.log("[ageverif.com bypass] Running");
 
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
-            const [url] = args;
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
             if (url.includes('www.ageverif.com/checker.js')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
-                    const text = await response.clone().text();
-
                     const modified = `(function () {
   function parseQuery(url) {
     const params = {};
@@ -311,6 +303,7 @@
                     });
                 } catch (e) {
                     console.error("[ageverif.com bypass] Error:", e);
+                    return response;
                 }
             }
             return originalFetch.apply(this, args);
@@ -321,15 +314,55 @@
     // aliexpress.com
     // ============================
     (function () {
-        if (!/aliexpress/.test(window.location.hostname)) return;
+        if (!/(^|\.)aliexpress\./.test(window.location.hostname)) return;
 
         console.log("[aliexpress.com bypass] Running");
 
+        GM_addStyle(`
+            .card-dsa-wrapper img {
+               filter: none !important; -webkit-filter: none !important;
+            }
+            .dsa--visible--wrapper img {
+               filter: none !important; -webkit-filter: none !important;
+            }
+        `);
+
         function cleanElements() {
-            document.querySelectorAll(".ls_ke, .ho_g9, img[src='https://ae-pic-a1.aliexpress-media.com/kf/S082ae95bce89462b9548a1d53f222ab4p/72x72.png'], .J_SAFETY_FILER_MODAL, ._1FlkA").forEach(el => el.style.display = "none");
-            document.querySelectorAll("img.nf_bj").forEach(el => el.classList.remove("nf_bj"));
+            // Popup on the product page
+            document.querySelectorAll(".J_SAFETY_FILER_MODAL").forEach(el => el.style.display = "none");
+
+            // Remove the class that keeps the blur/overlay on product cards
             document.querySelectorAll(".card-dsa-wrapper").forEach(el => el.classList.remove("card-dsa-wrapper"));
             document.querySelectorAll(".dsa--visible--wrapper").forEach(el => el.classList.remove("dsa--visible--wrapper"));
+
+            // Crossed eye icon in search results
+            document.querySelectorAll("img[src='https://ae-pic-a1.aliexpress-media.com/kf/S082ae95bce89462b9548a1d53f222ab4p/72x72.png']").forEach(el => el.style.display = "none");
+
+            // Blur on search results mobile
+            document.querySelectorAll("div[data-anc='body']>div>div>div>div>div>div, div[data-spm='platformRecommendH5']>div>div>div").forEach(el => el.style.display = "none");
+
+            // Remove the overlay over the products that opens the popup
+            const cardList = document.querySelector("#card-list");
+            if (cardList) {
+                for (const item of cardList.children) {
+                    const wrapper = item.querySelector(":scope > div");
+                    if (!wrapper) continue;
+                    const divs = wrapper.querySelectorAll(":scope > div");
+                    if (divs.length === 2) {
+                        divs[1].style.display = "none";
+                    }
+                }
+            }
+
+            // Recommended products on the product page
+            document.querySelectorAll(".slick-slide").forEach(item => {
+                const wrapper = item.querySelector(":scope > div > div > div");
+                if (!wrapper) return;
+                const divs = wrapper.querySelectorAll(":scope > div");
+                if (divs.length === 2) {
+                    divs[1].style.display = "none";
+                }
+            });
         }
 
         cleanElements();
@@ -337,16 +370,16 @@
         const observer = new MutationObserver(() => cleanElements());
         observer.observe(document.documentElement, { childList: true, subtree: true });
 
-        // Also intercept the exposure event and fireyejs requests
+        // Re-run whenever a new batch of products is loaded
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
-            const [url] = args;
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
             if (url.includes('aplus.aliexpress.com/Product.Exposure.Event') || url.includes('assets.aliexpress-media.com/g/AWSC/fireyejs/')) {
                 try {
-                    await originalFetch.apply(this, args);
-                } catch (e) {}
-                setTimeout(cleanElements, 0);
-                return new Response('', { status: 200 });
+                    return await originalFetch.apply(this, args);
+                } finally {
+                    setTimeout(cleanElements, 0);
+                }
             }
             return originalFetch.apply(this, args);
         };
@@ -356,17 +389,27 @@
     // bsky.app (Bluesky)
     // ============================
     (function () {
-        if (!/bsky\.(app|social)/.test(window.location.hostname) && !/public\.api\.bsky\.app/.test(window.location.hostname)) return;
+        if (!/(^|\.)bsky\.(app|social)$/.test(window.location.hostname)) return;
 
         console.log("[bsky.app bypass] Running");
 
-        // Intercept labeler getServices
+        // Spoof label source to look like it came from Bluesky's automod,
+        // which lets people see self-labelled (18+) posts even without login.
+        function spoofBlueskyAutomod(post) {
+            if (post?.labels) {
+                post.labels.forEach(label => {
+                    label.src = "did:plc:ar7c4by46qjdydhdevvrndac";
+                });
+            }
+            return post;
+        }
+
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
-            const [url] = args;
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
             if (url.includes('public.api.bsky.app/xrpc/app.bsky.labeler.getServices')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
                     const data = await response.clone().json();
                     data.views.forEach(view => {
                         view.policies.labelValueDefinitions = [];
@@ -374,10 +417,10 @@
                             view.policies.labelValueDefinitions.push({
                                 adultOnly: false,
                                 blurs: "media",
-                                defaultSetting: "warn",
+                                defaultSetting: "show",
                                 identifier: label,
                                 locales: [{
-                                    description: `This content is labeled as ${label}.`,
+                                    description: `This content is labeled as ${label} and is unlocked by the age-verification bypass. If it contains media, click on "show" to view it.`,
                                     lang: "en",
                                     name: label
                                 }],
@@ -392,11 +435,12 @@
                     });
                 } catch (e) {
                     console.error("[bsky.app bypass] Error:", e);
+                    return response;
                 }
             }
             if (url.includes('public.api.bsky.app/xrpc/app.bsky.ageassurance.getConfig')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
                     const data = await response.clone().json();
                     data.regions = [];
                     return new Response(JSON.stringify(data), {
@@ -406,6 +450,33 @@
                     });
                 } catch (e) {
                     console.error("[bsky.app bypass] Error:", e);
+                    return response;
+                }
+            }
+            if (url.includes('app.bsky.unspecced.getPostThreadV2')
+                || url.includes('app.bsky.feed.getAuthorFeed')
+                || url.includes('app.bsky.actor.getProfile')
+                || url.includes('app.bsky.feed.getFeed')) {
+                const response = await originalFetch.apply(this, args);
+                try {
+                    const data = await response.clone().json();
+                    if (url.includes('getProfile')) {
+                        data.labels = [];
+                    } else if (url.includes('getPostThreadV2')) {
+                        data?.thread?.forEach(thread => { thread.value.post = spoofBlueskyAutomod(thread.value.post); });
+                    } else if (url.includes('getAuthorFeed')) {
+                        data?.feed?.forEach(feed => { feed.post = spoofBlueskyAutomod(feed.post); });
+                    } else if (url.includes('getFeed')) {
+                        data?.feed?.forEach(feed => { feed.post = spoofBlueskyAutomod(feed.post); });
+                    }
+                    return new Response(JSON.stringify(data), {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: response.headers
+                    });
+                } catch (e) {
+                    console.error("[bsky.app bypass] Error:", e);
+                    return response;
                 }
             }
             return originalFetch.apply(this, args);
@@ -426,23 +497,25 @@
     // reddit.com
     // ============================
     (function () {
-        if (!/reddit/.test(window.location.hostname)) return;
+        if (!/(^|\.)reddit\.com$/.test(window.location.hostname)) return;
 
         console.log("[reddit.com bypass] Running");
 
-        const blockedId = "configured-xpromo-blocking_xpromo_nsfw_blocking_desktop";
+        const nsfwSubredditPopup = "configured-xpromo-blocking_xpromo_nsfw_blocking_desktop";
+        const loginUpsell = "desktop-dynamic-upsell-dialog";
         const promptContainerTagName = "xpromo-nsfw-blocking-container";
         const TEST_IDS = ["nsfw-bypassable-modal-client-css", "experiences-client-css"];
 
         function removeRedditPopups() {
-            if (document.getElementById(blockedId)) document.getElementById(blockedId).remove();
+            if (document.getElementById(nsfwSubredditPopup)) document.getElementById(nsfwSubredditPopup).remove();
+            if (document.getElementById(loginUpsell)) document.getElementById(loginUpsell).remove();
             const container = document.querySelector(promptContainerTagName);
             if (container?.shadowRoot?.querySelector(".prompt")) container.shadowRoot.querySelector(".prompt").remove();
 
             document.querySelectorAll(`style[data-testid]`).forEach(el => {
                 if (TEST_IDS.includes(el.getAttribute("data-testid"))) el.remove();
             });
-            Array.from(document.querySelectorAll("style")).filter(item => item.innerText?.includes(".rpl-scroll-lock"))[0]?.remove();
+            document.querySelectorAll("style").forEach(el => { if (el.textContent?.includes(".rpl-scroll-lock")) el.remove(); });
         }
 
         removeRedditPopups();
@@ -451,11 +524,11 @@
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (node.nodeType !== Node.ELEMENT_NODE) continue;
-                    if (node.id === blockedId) { node.remove(); continue; }
+                    if (node.id === nsfwSubredditPopup || node.id === loginUpsell) { node.remove(); continue; }
                     if (node.tagName === promptContainerTagName.toUpperCase()) {
                         node.shadowRoot?.querySelector?.(".prompt")?.remove();
                     }
-                    const target = node.querySelector?.(`#${CSS.escape(blockedId)}`);
+                    const target = node.querySelector?.(`#${CSS.escape(nsfwSubredditPopup)}`);
                     if (target) target.remove();
                     const target2 = node.querySelector?.(promptContainerTagName);
                     if (target2 && target2.shadowRoot) {
@@ -479,33 +552,32 @@
     // veriff.me
     // ============================
     (function () {
-        if (!/veriff\.(me|com)/.test(window.location.hostname) && !/cdn\.veriff\.(me|com)/.test(window.location.hostname)) return;
+        if (!/(^|\.)veriff\.(me|com)$/.test(window.location.hostname)) return;
 
         console.log("[veriff.me bypass] Running");
 
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
-            const [url] = args;
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
 
             // Block session creation and redirect to callback
             if (url.includes('saas.veriff.com/api/v2/sessions')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
                     const data = await response.clone().json();
                     if (data.vendorIntegration?.callback) {
                         window.location.href = data.vendorIntegration.callback;
                     }
-                    return response;
                 } catch (e) {
                     console.error("[veriff.me bypass] Error:", e);
                 }
+                return response;
             }
 
             // Spoof JS SDK
             if (url.includes('cdn.veriff.me/sdk/js/1.5/veriff.min.js')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
-                    const text = await response.clone().text();
                     const modified = `(function (w) {
     function createResponse() {
         return {
@@ -538,13 +610,14 @@
                     });
                 } catch (e) {
                     console.error("[veriff.me bypass] Error:", e);
+                    return response;
                 }
             }
 
             // Spoof Incontext SDK
             if (url.includes('cdn.veriff.me/incontext/js/v2.5.0/veriff.js')) {
+                const response = await originalFetch.apply(this, args);
                 try {
-                    const response = await originalFetch.apply(this, args);
                     const modified = `const MESSAGES = {
   STARTED: "STARTED",
   FINISHED: "FINISHED",
@@ -565,9 +638,196 @@ window.veriffSDK = {
                     });
                 } catch (e) {
                     console.error("[veriff.me bypass] Error:", e);
+                    return response;
                 }
             }
 
+            return originalFetch.apply(this, args);
+        };
+    })();
+
+    // ============================
+    // spankbang.com
+    // ============================
+    (function () {
+        if (!/(^|\.)spankbang\.com$/.test(window.location.hostname)) return;
+
+        console.log("[spankbang.com bypass] Running");
+
+        // Neutralize the age verification modal functions so they never show.
+        // Injected into page context as early as possible (document-start).
+        function neutralize() {
+            const script = document.createElement("script");
+            script.textContent = `
+                window.showAdvancedAgeVerification = function() {};
+                window.showAvRegistrationModal = function() {};
+            `;
+            (document.head || document.documentElement).appendChild(script);
+        }
+        neutralize();
+
+        function cleanSpankbang() {
+            const safetyBlur = document.querySelector("#safety-blur");
+            if (safetyBlur) safetyBlur.setAttribute("style", "display: none");
+
+            document.querySelectorAll(".strong-blur").forEach(el => el.classList.remove("strong-blur"));
+
+            // Remove the "18+" label from thumbnails
+            document.querySelectorAll("div[data-testid='video-item']>a>picture>div").forEach(node => node.remove());
+        }
+        cleanSpankbang();
+
+        const observer = new MutationObserver(() => cleanSpankbang());
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+    })();
+
+    // ============================
+    // x.com (Twitter) — EXPERIMENTAL / WIP
+    // ============================
+    (function () {
+        if (!/(^|\.)x\.com$/.test(window.location.hostname) && !/(^|\.)twitter\.com$/.test(window.location.hostname)) return;
+
+        console.log("[x.com bypass] Running (EXPERIMENTAL - WIP, may not work)");
+
+        const originalFetch = window.fetch;
+        window.fetch = async function (...args) {
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
+            if (url.includes("x.com/i/api/graphql/") && url.includes("TweetResultByRestId")) {
+                const response = await originalFetch.apply(this, args);
+                try {
+                    const data = await response.clone().json();
+                    const result = data?.data?.tweetResult?.result;
+                    if (result?.mediaVisibilityResults && result.tweet) {
+                        data.data.tweetResult.result = { ...result.tweet };
+                        data.data.tweetResult.result.__typename = "Tweet";
+                        const coreUser = data.data.tweetResult.result.core?.user_results?.result;
+                        if (coreUser?.profile_metadata) coreUser.profile_metadata.profile_interstitial_type = "";
+                        if (data.data.tweetResult.result.legacy) data.data.tweetResult.result.legacy.possibly_sensitive = false;
+                    }
+                    return new Response(JSON.stringify(data), {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: response.headers
+                    });
+                } catch (e) {
+                    console.error("[x.com bypass] Error:", e);
+                    return response;
+                }
+            }
+            return originalFetch.apply(this, args);
+        };
+    })();
+
+    // ============================
+    // cosxplay.com
+    // ============================
+    (function () {
+        if (!/(^|\.)cosxplay\.com$/.test(window.location.hostname)) return;
+
+        console.log("[cosxplay.com bypass] Running");
+
+        const BLOCK_URL = "cosxplay.com/dafeluv/age-by-nosotros/assets/js/age.js";
+
+        const originalFetch = window.fetch;
+        window.fetch = async function (...args) {
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
+            if (url.includes(BLOCK_URL)) {
+                console.log("[cosxplay.com bypass] Blocked age.js");
+                return new Response("", { status: 200, headers: { "Content-Type": "application/javascript" } });
+            }
+            return originalFetch.apply(this, args);
+        };
+
+        const originalOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (method, url) {
+            this._bypassUrl = url;
+            return originalOpen.apply(this, arguments);
+        };
+        const originalSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function () {
+            if (this._bypassUrl && this._bypassUrl.includes(BLOCK_URL)) {
+                console.log("[cosxplay.com bypass] Blocked age.js (XHR)");
+                Object.defineProperty(this, "readyState", { value: 4, writable: true });
+                Object.defineProperty(this, "status", { value: 200, writable: true });
+                Object.defineProperty(this, "responseText", { value: "", writable: true });
+                Object.defineProperty(this, "response", { value: "", writable: true });
+                this.dispatchEvent(new Event("load"));
+                this.dispatchEvent(new Event("loadend"));
+                if (typeof this.onload === "function") this.onload();
+                return;
+            }
+            return originalSend.apply(this, arguments);
+        };
+    })();
+
+    // ============================
+    // rule34.xxx — Tor hint (no direct bypass)
+    // ============================
+    (function () {
+        if (!/(^|\.)rule34\.xxx$/.test(window.location.hostname)) return;
+
+        console.log("[rule34.xxx bypass] Running");
+
+        function showTorHint() {
+            if (document.getElementById("avb-tor-hint")) return;
+            const banner = document.createElement("div");
+            banner.id = "avb-tor-hint";
+            banner.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:999999;background:#1a1a2e;color:#fff;padding:12px 16px;text-align:center;font-family:system-ui,sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.4);";
+            banner.innerHTML = 'Este site usa verificação de idade geográfica. Use o <a href="https://www.torproject.org/download/" target="_blank" style="color:#4fc3f7;text-decoration:underline;">navegador Tor</a> para contornar. <span style="cursor:pointer;margin-left:12px;opacity:0.7;" onclick="this.parentElement.remove()">✕</span><br><small style="opacity:0.7;">Dica do Age Verification Bypass — dispensa em: ícone da extensão → desmarcar notificações (upstream)</small>';
+            (document.body || document.documentElement).appendChild(banner);
+        }
+
+        const originalFetch = window.fetch;
+        window.fetch = async function (...args) {
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
+            if (url.includes("rule34.xxx/public/ageverify.php")) {
+                console.log("[rule34.xxx bypass] Detected ageverify — showing Tor hint");
+                if (document.readyState === "loading") {
+                    document.addEventListener("DOMContentLoaded", showTorHint);
+                } else {
+                    showTorHint();
+                }
+            }
+            return originalFetch.apply(this, args);
+        };
+
+        if (window.location.pathname.includes("ageverify.php")) {
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", showTorHint);
+            } else {
+                showTorHint();
+            }
+        }
+    })();
+
+    // ============================
+    // xhamster.com — Tor hint (IP block, no direct bypass)
+    // ============================
+    (function () {
+        if (!/(^|\.)xhamster\.com$/.test(window.location.hostname)) return;
+
+        console.log("[xhamster.com bypass] Running");
+
+        function showTorHint() {
+            if (document.getElementById("avb-tor-hint-xh")) return;
+            const banner = document.createElement("div");
+            banner.id = "avb-tor-hint-xh";
+            banner.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:999999;background:#1a1a2e;color:#fff;padding:12px 16px;text-align:center;font-family:system-ui,sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.4);";
+            banner.innerHTML = 'Verificação de idade por bloqueio geográfico. Use o <a href="https://www.torproject.org/download/" target="_blank" style="color:#4fc3f7;text-decoration:underline;">navegador Tor</a> para contornar. <span style="cursor:pointer;margin-left:12px;opacity:0.7;" onclick="this.parentElement.remove()">✕</span>';
+            (document.body || document.documentElement).appendChild(banner);
+        }
+
+        const originalFetch = window.fetch;
+        window.fetch = async function (...args) {
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
+            if (url.includes("collector.xhamster.com/?log=user-age-verification")) {
+                console.log("[xhamster.com bypass] Detected age verification — showing Tor hint");
+                if (document.readyState === "loading") {
+                    document.addEventListener("DOMContentLoaded", showTorHint);
+                } else {
+                    showTorHint();
+                }
+            }
             return originalFetch.apply(this, args);
         };
     })();
