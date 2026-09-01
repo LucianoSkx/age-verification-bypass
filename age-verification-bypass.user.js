@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.6.2
-// @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang and Veriff (plus experimental x.com support). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
-// @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang e Veriff (mais suporte experimental a x.com). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
+// @version      1.7.0
+// @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (plus experimental x.com and Tor hints for rule34/xHamster). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
+// @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (mais suporte experimental a x.com e dicas Tor para rule34/xHamster). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
 // @icon         https://raw.githubusercontent.com/helloyanis/age-verification-bypass/main/icon.svg
 // @author       helloyanis (original), LucianoSkx (port)
 // @match        *://*/*
@@ -712,6 +712,120 @@ window.veriffSDK = {
                 } catch (e) {
                     console.error("[x.com bypass] Error:", e);
                     return response;
+                }
+            }
+            return originalFetch.apply(this, args);
+        };
+    })();
+
+    // ============================
+    // cosxplay.com
+    // ============================
+    (function () {
+        if (!/(^|\.)cosxplay\.com$/.test(window.location.hostname)) return;
+
+        console.log("[cosxplay.com bypass] Running");
+
+        const BLOCK_URL = "cosxplay.com/dafeluv/age-by-nosotros/assets/js/age.js";
+
+        const originalFetch = window.fetch;
+        window.fetch = async function (...args) {
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
+            if (url.includes(BLOCK_URL)) {
+                console.log("[cosxplay.com bypass] Blocked age.js");
+                return new Response("", { status: 200, headers: { "Content-Type": "application/javascript" } });
+            }
+            return originalFetch.apply(this, args);
+        };
+
+        const originalOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (method, url) {
+            this._bypassUrl = url;
+            return originalOpen.apply(this, arguments);
+        };
+        const originalSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function () {
+            if (this._bypassUrl && this._bypassUrl.includes(BLOCK_URL)) {
+                console.log("[cosxplay.com bypass] Blocked age.js (XHR)");
+                Object.defineProperty(this, "readyState", { value: 4, writable: true });
+                Object.defineProperty(this, "status", { value: 200, writable: true });
+                Object.defineProperty(this, "responseText", { value: "", writable: true });
+                Object.defineProperty(this, "response", { value: "", writable: true });
+                this.dispatchEvent(new Event("load"));
+                this.dispatchEvent(new Event("loadend"));
+                if (typeof this.onload === "function") this.onload();
+                return;
+            }
+            return originalSend.apply(this, arguments);
+        };
+    })();
+
+    // ============================
+    // rule34.xxx — Tor hint (no direct bypass)
+    // ============================
+    (function () {
+        if (!/(^|\.)rule34\.xxx$/.test(window.location.hostname)) return;
+
+        console.log("[rule34.xxx bypass] Running");
+
+        function showTorHint() {
+            if (document.getElementById("avb-tor-hint")) return;
+            const banner = document.createElement("div");
+            banner.id = "avb-tor-hint";
+            banner.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:999999;background:#1a1a2e;color:#fff;padding:12px 16px;text-align:center;font-family:system-ui,sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.4);";
+            banner.innerHTML = 'Este site usa verificação de idade geográfica. Use o <a href="https://www.torproject.org/download/" target="_blank" style="color:#4fc3f7;text-decoration:underline;">navegador Tor</a> para contornar. <span style="cursor:pointer;margin-left:12px;opacity:0.7;" onclick="this.parentElement.remove()">✕</span><br><small style="opacity:0.7;">Dica do Age Verification Bypass — dispensa em: ícone da extensão → desmarcar notificações (upstream)</small>';
+            (document.body || document.documentElement).appendChild(banner);
+        }
+
+        const originalFetch = window.fetch;
+        window.fetch = async function (...args) {
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
+            if (url.includes("rule34.xxx/public/ageverify.php")) {
+                console.log("[rule34.xxx bypass] Detected ageverify — showing Tor hint");
+                if (document.readyState === "loading") {
+                    document.addEventListener("DOMContentLoaded", showTorHint);
+                } else {
+                    showTorHint();
+                }
+            }
+            return originalFetch.apply(this, args);
+        };
+
+        if (window.location.pathname.includes("ageverify.php")) {
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", showTorHint);
+            } else {
+                showTorHint();
+            }
+        }
+    })();
+
+    // ============================
+    // xhamster.com — Tor hint (IP block, no direct bypass)
+    // ============================
+    (function () {
+        if (!/(^|\.)xhamster\.com$/.test(window.location.hostname)) return;
+
+        console.log("[xhamster.com bypass] Running");
+
+        function showTorHint() {
+            if (document.getElementById("avb-tor-hint-xh")) return;
+            const banner = document.createElement("div");
+            banner.id = "avb-tor-hint-xh";
+            banner.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:999999;background:#1a1a2e;color:#fff;padding:12px 16px;text-align:center;font-family:system-ui,sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.4);";
+            banner.innerHTML = 'Verificação de idade por bloqueio geográfico. Use o <a href="https://www.torproject.org/download/" target="_blank" style="color:#4fc3f7;text-decoration:underline;">navegador Tor</a> para contornar. <span style="cursor:pointer;margin-left:12px;opacity:0.7;" onclick="this.parentElement.remove()">✕</span>';
+            (document.body || document.documentElement).appendChild(banner);
+        }
+
+        const originalFetch = window.fetch;
+        window.fetch = async function (...args) {
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
+            if (url.includes("collector.xhamster.com/?log=user-age-verification")) {
+                console.log("[xhamster.com bypass] Detected age verification — showing Tor hint");
+                if (document.readyState === "loading") {
+                    document.addEventListener("DOMContentLoaded", showTorHint);
+                } else {
+                    showTorHint();
                 }
             }
             return originalFetch.apply(this, args);
