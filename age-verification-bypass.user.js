@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.7.0
+// @version      1.7.1
 // @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (plus experimental x.com and Tor hints for rule34/xHamster). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
 // @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (mais suporte experimental a x.com e dicas Tor para rule34/xHamster). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
 // @icon         https://raw.githubusercontent.com/helloyanis/age-verification-bypass/main/icon.svg
@@ -727,12 +727,119 @@ window.veriffSDK = {
         console.log("[cosxplay.com bypass] Running");
 
         const BLOCK_URL = "cosxplay.com/dafeluv/age-by-nosotros/assets/js/age.js";
+        const OVERLAY_SELECTORS = "#abn-age-overlay, .abn-age-overlay, .abn-age-modal, .abn-age-banner";
+
+        try {
+            window.__ABN_SKIP_ALL = true;
+            window.ABN_AGE_ALLOWED = true;
+            window.ABN_AGE_ACTIVE = false;
+            window.ABN_AUTO_ALLOW = false;
+            try { window.dispatchEvent(new CustomEvent("abn:allowed", { detail: { bypass: true } })); } catch (_) {}
+        } catch (_) {}
+
+        function isBlockedScript(el) {
+            if (!el || el.tagName !== "SCRIPT") return false;
+            const src = el.src || el.getAttribute("src") || "";
+            return src.includes(BLOCK_URL) || src.includes("assets/js/age.js");
+        }
+
+        function killScript(el) {
+            if (!isBlockedScript(el)) return false;
+            console.log("[cosxplay.com bypass] Blocked <script> tag:", el.src || el.getAttribute("src"));
+            el.type = "javascript/blocked";
+            el.remove();
+            return true;
+        }
+
+        function cleanOverlays() {
+            document.querySelectorAll(OVERLAY_SELECTORS).forEach(function (el) { el.remove(); });
+            const html = document.documentElement;
+            if (html) { html.style.overflow = ""; html.style.removeProperty("overflow"); }
+            if (document.body) { document.body.style.overflow = ""; document.body.style.removeProperty("overflow"); document.body.classList.remove("abn-locked", "abn-age-locked"); }
+        }
+
+        try {
+            document.querySelectorAll('script[src*="age.js"]').forEach(killScript);
+            cleanOverlays();
+        } catch (_) {}
+
+        const origCreateElement = Document.prototype.createElement;
+        Document.prototype.createElement = function (tagName, options) {
+            const el = origCreateElement.call(this, tagName, options);
+            if (String(tagName).toLowerCase() === "script") {
+                const origSetAttr = el.setAttribute;
+                el.setAttribute = function (name, value) {
+                    if (String(name).toLowerCase() === "src" && String(value).includes(BLOCK_URL)) {
+                        console.log("[cosxplay.com bypass] Blocked createElement src:", value);
+                        return;
+                    }
+                    if (String(name).toLowerCase() === "src" && String(value).includes("assets/js/age.js")) {
+                        console.log("[cosxplay.com bypass] Blocked createElement src (pattern):", value);
+                        return;
+                    }
+                    return origSetAttr.apply(this, arguments);
+                };
+                try {
+                    let blockedSrc = "";
+                    Object.defineProperty(el, "src", {
+                        get: function () { return blockedSrc; },
+                        set: function (v) {
+                            if (String(v).includes(BLOCK_URL) || String(v).includes("assets/js/age.js")) {
+                                console.log("[cosxplay.com bypass] Blocked script.src setter:", v);
+                                blockedSrc = "";
+                                el.type = "javascript/blocked";
+                                el.remove();
+                                return;
+                            }
+                            blockedSrc = String(v);
+                            try { el.setAttribute("src", blockedSrc); } catch (_) {}
+                        },
+                        configurable: true
+                    });
+                } catch (_) {}
+            }
+            return el;
+        };
+
+        const scriptObserver = new MutationObserver(function (mutations) {
+            for (const m of mutations) {
+                for (const node of m.addedNodes) {
+                    if (node.nodeType !== 1) continue;
+                    if (node.tagName === "SCRIPT") killScript(node);
+                    if (node.querySelectorAll) {
+                        node.querySelectorAll('script[src*="age.js"]').forEach(killScript);
+                        if (node.matches && node.matches(OVERLAY_SELECTORS)) node.remove();
+                        node.querySelectorAll(OVERLAY_SELECTORS).forEach(function (el) { el.remove(); });
+                    }
+                }
+            }
+            cleanOverlays();
+        });
+
+        try {
+            const root = document.documentElement || document;
+            scriptObserver.observe(root, { childList: true, subtree: true });
+        } catch (_) {
+            document.addEventListener("DOMContentLoaded", function () {
+                try { scriptObserver.observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
+            });
+        }
+
+        const overlayObserver = new MutationObserver(function () { cleanOverlays(); });
+        try {
+            const target = document.documentElement || document.body || document;
+            overlayObserver.observe(target, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class"] });
+        } catch (_) {}
+
+        document.addEventListener("DOMContentLoaded", cleanOverlays);
+        window.addEventListener("load", cleanOverlays);
+        setInterval(cleanOverlays, 1000);
 
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
             const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
-            if (url.includes(BLOCK_URL)) {
-                console.log("[cosxplay.com bypass] Blocked age.js");
+            if (url.includes(BLOCK_URL) || url.includes("assets/js/age.js")) {
+                console.log("[cosxplay.com bypass] Blocked age.js (fetch)");
                 return new Response("", { status: 200, headers: { "Content-Type": "application/javascript" } });
             }
             return originalFetch.apply(this, args);
@@ -745,7 +852,7 @@ window.veriffSDK = {
         };
         const originalSend = XMLHttpRequest.prototype.send;
         XMLHttpRequest.prototype.send = function () {
-            if (this._bypassUrl && this._bypassUrl.includes(BLOCK_URL)) {
+            if (this._bypassUrl && (this._bypassUrl.includes(BLOCK_URL) || this._bypassUrl.includes("assets/js/age.js"))) {
                 console.log("[cosxplay.com bypass] Blocked age.js (XHR)");
                 Object.defineProperty(this, "readyState", { value: 4, writable: true });
                 Object.defineProperty(this, "status", { value: 200, writable: true });
