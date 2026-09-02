@@ -737,6 +737,63 @@ window.veriffSDK = {
             try { window.dispatchEvent(new CustomEvent("abn:allowed", { detail: { bypass: true } })); } catch (_) {}
         } catch (_) {}
 
+        // Intercept jQuery.ready BEFORE age.js can register its callback.
+        // age.js uses $(function(){ ... }) to show the overlay. By replacing
+        // jQuery.fn.ready we can prevent those callbacks from ever firing.
+        (function interceptJQueryReady() {
+            function patchjQuery(jq) {
+                if (!jq || !jq.fn) return;
+                const origReady = jq.fn.ready;
+                jq.fn.ready = function (fn) {
+                    if (typeof fn === "function") {
+                        const src = fn.toString();
+                        if (src && (src.includes("abn-age") || src.includes("ABN_SKIP") ||
+                            src.includes("buildOverlay") || src.includes("shouldShow") ||
+                            src.includes("abn:allowed") || src.includes("abn-age-overlay"))) {
+                            console.log("[cosxplay.com bypass] Blocked jQuery.ready callback from age.js");
+                            return this;
+                        }
+                    }
+                    return origReady ? origReady.apply(this, arguments) : this;
+                };
+            }
+            if (window.jQuery) patchjQuery(window.jQuery);
+            if (window.$ && window.$.fn) patchjQuery(window.$);
+            // Also catch jQuery loaded AFTER this script
+            Object.defineProperty(window, "jQuery", {
+                configurable: true, enumerable: false,
+                set: function (v) {
+                    this._bypass_jq = v;
+                    if (v && v.fn) patchjQuery(v);
+                },
+                get: function () { return this._bypass_jq; }
+            });
+            Object.defineProperty(window, "$", {
+                configurable: true, enumerable: false,
+                set: function (v) {
+                    this._bypass_dollar = v;
+                    if (v && v.fn) patchjQuery(v);
+                },
+                get: function () { return this._bypass_dollar; }
+            });
+        })();
+
+        // Intercept script load via document.head.appendChild (age.js uses this directly)
+        (function interceptHeadAppend() {
+            const origAppend = Element.prototype.appendChild;
+            Element.prototype.appendChild = function (child) {
+                if (child && child.tagName === "SCRIPT") {
+                    const src = child.src || child.getAttribute("src") || "";
+                    if (src.includes(BLOCK_URL) || src.includes("assets/js/age.js")) {
+                        console.log("[cosxplay.com bypass] Blocked script via appendChild:", src);
+                        child.type = "javascript/blocked";
+                        return child;
+                    }
+                }
+                return origAppend.apply(this, arguments);
+            };
+        })();
+
         function isBlockedScript(el) {
             if (!el || el.tagName !== "SCRIPT") return false;
             const src = el.src || el.getAttribute("src") || "";
@@ -753,9 +810,11 @@ window.veriffSDK = {
 
         function cleanOverlays() {
             document.querySelectorAll(OVERLAY_SELECTORS).forEach(function (el) { el.remove(); });
+            // Also remove AgeGO banners and badges
+            document.querySelectorAll(".abn-age-banner, .abn-age-badge, .abn-age-badge-tags, .abn-age-player-gate").forEach(function (el) { el.remove(); });
             const html = document.documentElement;
-            if (html) { html.style.overflow = ""; html.style.removeProperty("overflow"); }
-            if (document.body) { document.body.style.overflow = ""; document.body.style.removeProperty("overflow"); document.body.classList.remove("abn-locked", "abn-age-locked"); }
+            if (html) { html.style.overflow = ""; html.style.removeProperty("overflow"); html.classList.remove("abn-age-lock"); }
+            if (document.body) { document.body.style.overflow = ""; document.body.style.removeProperty("overflow"); document.body.classList.remove("abn-locked", "abn-age-locked", "abn-age-lock"); }
         }
 
         try {
