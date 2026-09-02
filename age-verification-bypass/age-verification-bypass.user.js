@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.7.3
+// @version      1.7.4
 // @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (plus experimental x.com and Tor hints for rule34/xHamster). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
 // @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (mais suporte experimental a x.com e dicas Tor para rule34/xHamster). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
 // @icon         https://raw.githubusercontent.com/helloyanis/age-verification-bypass/main/icon.svg
@@ -726,186 +726,30 @@ window.veriffSDK = {
 
         console.log("[cosxplay.com bypass] Running");
 
-        const BLOCK_URL = "cosxplay.com/dafeluv/age-by-nosotros/assets/js/age.js";
+        // age.js checks this cookie in shouldShow(). If present, overlay is never shown.
+        // Set it at document-start so it's in place before age.js runs.
+        document.cookie = "abn_age_verified=1; path=/; max-age=31536000; SameSite=Lax";
+
+        // Fallback: if overlay was somehow created, remove it and restore scrolling.
         const OVERLAY_SELECTORS = "#abn-age-overlay, .abn-age-overlay, .abn-age-modal, .abn-age-banner";
-
-        try {
-            window.__ABN_SKIP_ALL = true;
-            window.ABN_AGE_ALLOWED = true;
-            window.ABN_AGE_ACTIVE = false;
-            window.ABN_AUTO_ALLOW = false;
-            try { window.dispatchEvent(new CustomEvent("abn:allowed", { detail: { bypass: true } })); } catch (_) {}
-        } catch (_) {}
-
-        // Intercept jQuery.ready BEFORE age.js can register its callback.
-        // age.js uses $(function(){ ... }) to show the overlay. By replacing
-        // jQuery.fn.ready we can prevent those callbacks from ever firing.
-        (function interceptJQueryReady() {
-            function patchjQuery(jq) {
-                if (!jq || !jq.fn) return;
-                const origReady = jq.fn.ready;
-                jq.fn.ready = function (fn) {
-                    if (typeof fn === "function") {
-                        const src = fn.toString();
-                        if (src && (src.includes("abn-age") || src.includes("ABN_SKIP") ||
-                            src.includes("buildOverlay") || src.includes("shouldShow") ||
-                            src.includes("abn:allowed") || src.includes("abn-age-overlay"))) {
-                            console.log("[cosxplay.com bypass] Blocked jQuery.ready callback from age.js");
-                            return this;
-                        }
-                    }
-                    return origReady ? origReady.apply(this, arguments) : this;
-                };
-            }
-            if (window.jQuery) patchjQuery(window.jQuery);
-            if (window.$ && window.$.fn) patchjQuery(window.$);
-            // Also catch jQuery loaded AFTER this script
-            Object.defineProperty(window, "jQuery", {
-                configurable: true, enumerable: false,
-                set: function (v) {
-                    this._bypass_jq = v;
-                    if (v && v.fn) patchjQuery(v);
-                },
-                get: function () { return this._bypass_jq; }
-            });
-            Object.defineProperty(window, "$", {
-                configurable: true, enumerable: false,
-                set: function (v) {
-                    this._bypass_dollar = v;
-                    if (v && v.fn) patchjQuery(v);
-                },
-                get: function () { return this._bypass_dollar; }
-            });
-        })();
-
-        // Intercept script load via document.head.appendChild (age.js uses this directly)
-        (function interceptHeadAppend() {
-            const origAppend = Element.prototype.appendChild;
-            Element.prototype.appendChild = function (child) {
-                if (child && child.tagName === "SCRIPT") {
-                    const src = child.src || child.getAttribute("src") || "";
-                    if (src.includes(BLOCK_URL) || src.includes("assets/js/age.js")) {
-                        console.log("[cosxplay.com bypass] Blocked script via appendChild:", src);
-                        child.type = "javascript/blocked";
-                        return child;
-                    }
-                }
-                return origAppend.apply(this, arguments);
-            };
-        })();
-
-        function isBlockedScript(el) {
-            if (!el || el.tagName !== "SCRIPT") return false;
-            const src = el.src || el.getAttribute("src") || "";
-            return src.includes(BLOCK_URL) || src.includes("assets/js/age.js");
-        }
-
-        function killScript(el) {
-            if (!isBlockedScript(el)) return false;
-            console.log("[cosxplay.com bypass] Blocked <script> tag:", el.src || el.getAttribute("src"));
-            el.type = "javascript/blocked";
-            el.remove();
-            return true;
-        }
 
         function cleanOverlays() {
             document.querySelectorAll(OVERLAY_SELECTORS).forEach(function (el) { el.remove(); });
-            // Also remove AgeGO banners and badges
             document.querySelectorAll(".abn-age-banner, .abn-age-badge, .abn-age-badge-tags, .abn-age-player-gate").forEach(function (el) { el.remove(); });
-            const html = document.documentElement;
+            var html = document.documentElement;
             if (html) { html.style.overflow = ""; html.style.removeProperty("overflow"); html.classList.remove("abn-age-lock"); }
             if (document.body) { document.body.style.overflow = ""; document.body.style.removeProperty("overflow"); document.body.classList.remove("abn-locked", "abn-age-locked", "abn-age-lock"); }
         }
 
+        cleanOverlays();
+
+        var overlayObserver = new MutationObserver(cleanOverlays);
         try {
-            document.querySelectorAll('script[src*="age.js"]').forEach(killScript);
-            cleanOverlays();
-        } catch (_) {}
-
-        const origCreateElement = Document.prototype.createElement;
-        Document.prototype.createElement = function (tagName, options) {
-            const el = origCreateElement.call(this, tagName, options);
-            if (String(tagName).toLowerCase() === "script") {
-                const origSetAttr = el.setAttribute;
-                el.setAttribute = function (name, value) {
-                    if (String(name).toLowerCase() === "src") {
-                        if (String(value).includes(BLOCK_URL) || String(value).includes("assets/js/age.js")) {
-                            console.log("[cosxplay.com bypass] Blocked script src:", value);
-                            el.type = "javascript/blocked";
-                            el.remove();
-                            return;
-                        }
-                    }
-                    return origSetAttr.apply(this, arguments);
-                };
-            }
-            return el;
-        };
-
-        const scriptObserver = new MutationObserver(function (mutations) {
-            for (const m of mutations) {
-                for (const node of m.addedNodes) {
-                    if (node.nodeType !== 1) continue;
-                    if (node.tagName === "SCRIPT") killScript(node);
-                    if (node.querySelectorAll) {
-                        node.querySelectorAll('script[src*="age.js"]').forEach(killScript);
-                        if (node.matches && node.matches(OVERLAY_SELECTORS)) node.remove();
-                        node.querySelectorAll(OVERLAY_SELECTORS).forEach(function (el) { el.remove(); });
-                    }
-                }
-            }
-            cleanOverlays();
-        });
-
-        try {
-            const root = document.documentElement || document;
-            scriptObserver.observe(root, { childList: true, subtree: true });
-        } catch (_) {
-            document.addEventListener("DOMContentLoaded", function () {
-                try { scriptObserver.observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
-            });
-        }
-
-        const overlayObserver = new MutationObserver(function () { cleanOverlays(); });
-        try {
-            const target = document.documentElement || document.body || document;
-            overlayObserver.observe(target, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class"] });
+            overlayObserver.observe(document.documentElement || document.body || document, { childList: true, subtree: true });
         } catch (_) {}
 
         document.addEventListener("DOMContentLoaded", cleanOverlays);
         window.addEventListener("load", cleanOverlays);
-        setInterval(cleanOverlays, 1000);
-
-        const originalFetch = window.fetch;
-        window.fetch = async function (...args) {
-            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
-            if (url.includes(BLOCK_URL) || url.includes("assets/js/age.js")) {
-                console.log("[cosxplay.com bypass] Blocked age.js (fetch)");
-                return new Response("", { status: 200, headers: { "Content-Type": "application/javascript" } });
-            }
-            return originalFetch.apply(this, args);
-        };
-
-        const originalOpen = XMLHttpRequest.prototype.open;
-        XMLHttpRequest.prototype.open = function (method, url) {
-            this._bypassUrl = url;
-            return originalOpen.apply(this, arguments);
-        };
-        const originalSend = XMLHttpRequest.prototype.send;
-        XMLHttpRequest.prototype.send = function () {
-            if (this._bypassUrl && (this._bypassUrl.includes(BLOCK_URL) || this._bypassUrl.includes("assets/js/age.js"))) {
-                console.log("[cosxplay.com bypass] Blocked age.js (XHR)");
-                Object.defineProperty(this, "readyState", { value: 4, writable: true });
-                Object.defineProperty(this, "status", { value: 200, writable: true });
-                Object.defineProperty(this, "responseText", { value: "", writable: true });
-                Object.defineProperty(this, "response", { value: "", writable: true });
-                this.dispatchEvent(new Event("load"));
-                this.dispatchEvent(new Event("loadend"));
-                if (typeof this.onload === "function") this.onload();
-                return;
-            }
-            return originalSend.apply(this, arguments);
-        };
     })();
 
     // ============================
