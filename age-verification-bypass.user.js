@@ -654,7 +654,7 @@ window.veriffSDK = {
 
         console.log("[spankbang.com bypass] Running");
 
-        const OVERLAY_SELECTORS = "#safety-blur, .strong-blur, div[data-testid='video-item']>a>picture>div";
+        const OVERLAY_SELECTORS = "#safety-blur, .strong-blur";
 
         function hardOverride(name, fn) {
             try {
@@ -716,7 +716,6 @@ window.veriffSDK = {
                 const modified = String(html)
                     .replace(/id="safety-blur"[^>]*>/g, 'id="safety-blur" style="display:none">')
                     .replace(/class="strong-blur"/g, 'class="strong-blur" style="display:none"')
-                    .replace(/<div[^>]*data-testid=['"]video-item['"]>.*?<\/div>/g, '')
                     .replace(/window\.showAdvancedAgeVerification\s*=\s*function[^}]*}/g, 'window.showAdvancedAgeVerification = function(){}')
                     .replace(/window\.showAvRegistrationModal\s*=\s*function[^}]*}/g, 'window.showAvRegistrationModal = function(){}');
                 return origDocWrite.apply(this, [modified]);
@@ -730,7 +729,6 @@ window.veriffSDK = {
                 const modified = String(html)
                     .replace(/id="safety-blur"[^>]*>/g, 'id="safety-blur" style="display:none">')
                     .replace(/class="strong-blur"/g, 'class="strong-blur" style="display:none"')
-                    .replace(/<div[^>]*data-testid=['"]video-item['"]>.*?<\/div>/g, '')
                     .replace(/window\.showAdvancedAgeVerification\s*=\s*function[^}]*}/g, 'window.showAdvancedAgeVerification = function(){}')
                     .replace(/window\.showAvRegistrationModal\s*=\s*function[^}]*}/g, 'window.showAvRegistrationModal = function(){}');
                 return origDocWriteLn.apply(this, [modified]);
