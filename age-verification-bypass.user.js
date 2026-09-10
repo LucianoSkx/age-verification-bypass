@@ -710,33 +710,73 @@ window.veriffSDK = {
             cssObserver.observe(document.head || document.documentElement, { childList: true, subtree: true });
         } catch (_) {}
 
-        const originalFetch = window.fetch;
-        window.fetch = async function (...args) {
-            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
-            if (url.includes("spankbang.com") && (url.includes("/") && !url.includes("cdn.") && !url.includes("api."))) {
-                try {
-                    const response = await originalFetch.apply(this, args);
-                    const text = await response.clone().text();
-                    if (text.includes("safety-blur") || text.includes("strong-blur") || text.includes("showAdvancedAgeVerification")) {
-                        const modified = text
-                            .replace(/id="safety-blur"[^>]*>/g, 'id="safety-blur" style="display:none">')
-                            .replace(/class="strong-blur"/g, 'class="strong-blur" style="display:none"')
-                            .replace(/<div[^>]*data-testid=['"]video-item['"]>.*?<\/div>/g, '')
-                            .replace(/window\.showAdvancedAgeVerification\s*=\s*function[^}]*}/g, 'window.showAdvancedAgeVerification = function(){}')
-                            .replace(/window\.showAvRegistrationModal\s*=\s*function[^}]*}/g, 'window.showAvRegistrationModal = function(){}');
-                        return new Response(modified, {
-                            status: response.status,
-                            statusText: response.statusText,
-                            headers: response.headers
-                        });
+        const origDocWrite = Document.prototype.write;
+        Document.prototype.write = function (html) {
+            if (String(html).includes("safety-blur") || String(html).includes("strong-blur") || String(html).includes("showAdvancedAgeVerification")) {
+                const modified = String(html)
+                    .replace(/id="safety-blur"[^>]*>/g, 'id="safety-blur" style="display:none">')
+                    .replace(/class="strong-blur"/g, 'class="strong-blur" style="display:none"')
+                    .replace(/<div[^>]*data-testid=['"]video-item['"]>.*?<\/div>/g, '')
+                    .replace(/window\.showAdvancedAgeVerification\s*=\s*function[^}]*}/g, 'window.showAdvancedAgeVerification = function(){}')
+                    .replace(/window\.showAvRegistrationModal\s*=\s*function[^}]*}/g, 'window.showAvRegistrationModal = function(){}');
+                return origDocWrite.apply(this, [modified]);
+            }
+            return origDocWrite.apply(this, arguments);
+        };
+
+        const origDocWriteLn = Document.prototype.writeln;
+        Document.prototype.writeln = function (html) {
+            if (String(html).includes("safety-blur") || String(html).includes("strong-blur") || String(html).includes("showAdvancedAgeVerification")) {
+                const modified = String(html)
+                    .replace(/id="safety-blur"[^>]*>/g, 'id="safety-blur" style="display:none">')
+                    .replace(/class="strong-blur"/g, 'class="strong-blur" style="display:none"')
+                    .replace(/<div[^>]*data-testid=['"]video-item['"]>.*?<\/div>/g, '')
+                    .replace(/window\.showAdvancedAgeVerification\s*=\s*function[^}]*}/g, 'window.showAdvancedAgeVerification = function(){}')
+                    .replace(/window\.showAvRegistrationModal\s*=\s*function[^}]*}/g, 'window.showAvRegistrationModal = function(){}');
+                return origDocWriteLn.apply(this, [modified]);
+            }
+            return origDocWriteLn.apply(this, arguments);
+        };
+
+        const origCreateElement = Document.prototype.createElement;
+        Document.prototype.createElement = function (tagName, options) {
+            const el = origCreateElement.call(this, tagName, options);
+            if (String(tagName).toLowerCase() === "script") {
+                const origSetAttr = el.setAttribute;
+                el.setAttribute = function (name, value) {
+                    if (String(name).toLowerCase() === "src") {
+                        if (String(value).includes("spankbang.com") && (String(value).includes("/") && !String(value).includes("cdn.") && !String(value).includes("api."))) {
+                            console.log("[spankbang.com bypass] Blocked script src:", value);
+                            el.type = "javascript/blocked";
+                            el.remove();
+                            return;
+                        }
                     }
-                    return response;
-                } catch (e) {
-                    console.error("[spankbang.com bypass] Error:", e);
-                    return originalFetch.apply(this, args);
+                    return origSetAttr.apply(this, arguments);
+                };
+            }
+            return el;
+        };
+
+        const origCreateStyle = CSSStyleDeclaration.prototype.setProperty;
+        CSSStyleDeclaration.prototype.setProperty = function (property, value, priority) {
+            if (String(property).includes("filter") || String(property).includes("backdrop-filter")) {
+                const val = String(value);
+                if (val.includes("blur") || val.includes("safety-blur")) {
+                    console.log("[spankbang.com bypass] Blocked CSS blur:", property, value);
+                    return;
                 }
             }
-            return originalFetch.apply(this, args);
+            return origCreateStyle.apply(this, arguments);
+        };
+
+        const origCreateStyleRule = CSSStyleDeclaration.prototype.insertRule;
+        CSSStyleDeclaration.prototype.insertRule = function (rule, index) {
+            if (String(rule).includes("safety-blur") || String(rule).includes("strong-blur") || String(rule).includes("blur")) {
+                console.log("[spankbang.com bypass] Blocked CSS rule:", rule);
+                return -1;
+            }
+            return origCreateStyleRule.apply(this, arguments);
         };
 
         document.addEventListener("DOMContentLoaded", cleanSpankbang);
