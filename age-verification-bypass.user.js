@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.7.4
+// @version      1.7.5
 // @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (plus experimental x.com and Tor hints for rule34/xHamster). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
 // @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (mais suporte experimental a x.com e dicas Tor para rule34/xHamster). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
 // @icon         https://raw.githubusercontent.com/helloyanis/age-verification-bypass/main/icon.svg
@@ -654,31 +654,94 @@ window.veriffSDK = {
 
         console.log("[spankbang.com bypass] Running");
 
-        // Neutralize the age verification modal functions so they never show.
-        // Injected into page context as early as possible (document-start).
-        function neutralize() {
-            const script = document.createElement("script");
-            script.textContent = `
-                window.showAdvancedAgeVerification = function() {};
-                window.showAvRegistrationModal = function() {};
-            `;
-            (document.head || document.documentElement).appendChild(script);
+        const OVERLAY_SELECTORS = "#safety-blur, .strong-blur, div[data-testid='video-item']>a>picture>div";
+
+        function hardOverride(name, fn) {
+            try {
+                Object.defineProperty(window, name, {
+                    value: fn,
+                    writable: false,
+                    configurable: false
+                });
+            } catch (e) {
+                try { window[name] = fn; } catch (_) {}
+            }
         }
-        neutralize();
+
+        hardOverride("showAdvancedAgeVerification", function () {});
+        hardOverride("showAvRegistrationModal", function () {});
+
+        if (document.readyState === "loading") {
+            const preload = document.createElement("script");
+            preload.textContent = `
+                Object.defineProperty(window, 'showAdvancedAgeVerification', {value: function(){}, writable:false, configurable:false});
+                Object.defineProperty(window, 'showAvRegistrationModal', {value: function(){}, writable:false, configurable:false});
+            `;
+            (document.head || document.documentElement).appendChild(preload);
+        }
 
         function cleanSpankbang() {
-            const safetyBlur = document.querySelector("#safety-blur");
-            if (safetyBlur) safetyBlur.setAttribute("style", "display: none");
-
-            document.querySelectorAll(".strong-blur").forEach(el => el.classList.remove("strong-blur"));
-
-            // Remove the "18+" label from thumbnails
-            document.querySelectorAll("div[data-testid='video-item']>a>picture>div").forEach(node => node.remove());
+            document.querySelectorAll(OVERLAY_SELECTORS).forEach(function (el) { el.remove(); });
+            document.querySelectorAll(".abn-blur, [class*='blur']").forEach(function (el) {
+                el.style.filter = "none";
+                el.style.backdropFilter = "none";
+                el.classList.remove("strong-blur", "safety-blur", "abn-blur");
+            });
+            const html = document.documentElement;
+            if (html) { html.style.overflow = ""; html.style.removeProperty("overflow"); }
+            if (document.body) { document.body.style.overflow = ""; document.body.style.removeProperty("overflow"); }
         }
+
         cleanSpankbang();
 
-        const observer = new MutationObserver(() => cleanSpankbang());
-        observer.observe(document.documentElement, { childList: true, subtree: true });
+        const observer = new MutationObserver(function () { cleanSpankbang(); });
+        try {
+            observer.observe(document.documentElement, { childList: true, subtree: true });
+        } catch (_) {}
+
+        const cssObserver = new MutationObserver(function () {
+            document.querySelectorAll("style").forEach(function (s) {
+                if (s.textContent && s.textContent.includes("safety-blur")) {
+                    try { s.remove(); } catch (_) {}
+                }
+            });
+        });
+        try {
+            cssObserver.observe(document.head || document.documentElement, { childList: true, subtree: true });
+        } catch (_) {}
+
+        const originalFetch = window.fetch;
+        window.fetch = async function (...args) {
+            const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
+            if (url.includes("spankbang.com") && (url.includes("/") && !url.includes("cdn.") && !url.includes("api."))) {
+                try {
+                    const response = await originalFetch.apply(this, args);
+                    const text = await response.clone().text();
+                    if (text.includes("safety-blur") || text.includes("strong-blur") || text.includes("showAdvancedAgeVerification")) {
+                        const modified = text
+                            .replace(/id="safety-blur"[^>]*>/g, 'id="safety-blur" style="display:none">')
+                            .replace(/class="strong-blur"/g, 'class="strong-blur" style="display:none"')
+                            .replace(/<div[^>]*data-testid=['"]video-item['"]>.*?<\/div>/g, '')
+                            .replace(/window\.showAdvancedAgeVerification\s*=\s*function[^}]*}/g, 'window.showAdvancedAgeVerification = function(){}')
+                            .replace(/window\.showAvRegistrationModal\s*=\s*function[^}]*}/g, 'window.showAvRegistrationModal = function(){}');
+                        return new Response(modified, {
+                            status: response.status,
+                            statusText: response.statusText,
+                            headers: response.headers
+                        });
+                    }
+                    return response;
+                } catch (e) {
+                    console.error("[spankbang.com bypass] Error:", e);
+                    return originalFetch.apply(this, args);
+                }
+            }
+            return originalFetch.apply(this, args);
+        };
+
+        document.addEventListener("DOMContentLoaded", cleanSpankbang);
+        window.addEventListener("load", cleanSpankbang);
+        setInterval(cleanSpankbang, 1000);
     })();
 
     // ============================
