@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.7.7
+// @version      1.7.8
 // @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (plus experimental x.com and Tor hints for rule34/xHamster). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
 // @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (mais suporte experimental a x.com e dicas Tor para rule34/xHamster). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
 // @icon         https://raw.githubusercontent.com/helloyanis/age-verification-bypass/main/icon.svg
@@ -654,8 +654,6 @@ window.veriffSDK = {
 
         console.log("[spankbang.com bypass] Running");
 
-        const OVERLAY_SELECTORS = "#safety-blur, .strong-blur";
-
         try {
             const preload = document.createElement("script");
             preload.textContent = "const showAdvancedAgeVerification = function(){}; const showAvRegistrationModal = function(){};";
@@ -664,15 +662,18 @@ window.veriffSDK = {
         } catch (_) {}
 
         function cleanSpankbang() {
-            document.querySelectorAll(OVERLAY_SELECTORS).forEach(function (el) { el.remove(); });
-            document.querySelectorAll(".abn-blur, [class*='blur']").forEach(function (el) {
-                el.style.filter = "none";
-                el.style.backdropFilter = "none";
-                el.classList.remove("strong-blur", "safety-blur", "abn-blur");
-            });
-            const html = document.documentElement;
-            if (html) { html.style.overflow = ""; html.style.removeProperty("overflow"); }
-            if (document.body) { document.body.style.overflow = ""; document.body.style.removeProperty("overflow"); }
+            try {
+                const safety = document.querySelector("#safety-blur");
+                if (safety) safety.style.display = "none";
+                document.querySelectorAll(".strong-blur").forEach(function (el) {
+                    el.classList.remove("strong-blur");
+                    el.style.filter = "none";
+                    el.style.backdropFilter = "none";
+                });
+                document.querySelectorAll("div[data-testid='video-item']>a>picture>div").forEach(function (el) { el.remove(); });
+                if (document.documentElement) document.documentElement.style.removeProperty("overflow");
+                if (document.body) document.body.style.removeProperty("overflow");
+            } catch (_) {}
         }
 
         cleanSpankbang();
@@ -682,62 +683,16 @@ window.veriffSDK = {
             observer.observe(document.documentElement, { childList: true, subtree: true });
         } catch (_) {}
 
-        const cssObserver = new MutationObserver(function () {
-            document.querySelectorAll("style").forEach(function (s) {
-                if (s.textContent && s.textContent.includes("safety-blur")) {
-                    try { s.remove(); } catch (_) {}
+        const origFetch = window.fetch;
+        window.fetch = function () {
+            try {
+                const first = arguments[0];
+                const url = typeof first === "string" ? first : (first && (first.url || first.href)) || "";
+                if (String(url).indexOf("/users/av-registration") !== -1) {
+                    return Promise.resolve(new Response("", { status: 200, statusText: "OK" }));
                 }
-            });
-        });
-        try {
-            cssObserver.observe(document.head || document.documentElement, { childList: true, subtree: true });
-        } catch (_) {}
-
-        const origDocWrite = Document.prototype.write;
-        Document.prototype.write = function (html) {
-            if (String(html).includes("safety-blur") || String(html).includes("strong-blur") || String(html).includes("showAdvancedAgeVerification")) {
-                const modified = String(html)
-                    .replace(/id="safety-blur"[^>]*>/g, 'id="safety-blur" style="display:none">')
-                    .replace(/class="strong-blur"/g, 'class="strong-blur" style="display:none"')
-                    .replace(/window\.showAdvancedAgeVerification\s*=\s*function[^}]*}/g, 'window.showAdvancedAgeVerification = function(){}')
-                    .replace(/window\.showAvRegistrationModal\s*=\s*function[^}]*}/g, 'window.showAvRegistrationModal = function(){}');
-                return origDocWrite.apply(this, [modified]);
-            }
-            return origDocWrite.apply(this, arguments);
-        };
-
-        const origDocWriteLn = Document.prototype.writeln;
-        Document.prototype.writeln = function (html) {
-            if (String(html).includes("safety-blur") || String(html).includes("strong-blur") || String(html).includes("showAdvancedAgeVerification")) {
-                const modified = String(html)
-                    .replace(/id="safety-blur"[^>]*>/g, 'id="safety-blur" style="display:none">')
-                    .replace(/class="strong-blur"/g, 'class="strong-blur" style="display:none"')
-                    .replace(/window\.showAdvancedAgeVerification\s*=\s*function[^}]*}/g, 'window.showAdvancedAgeVerification = function(){}')
-                    .replace(/window\.showAvRegistrationModal\s*=\s*function[^}]*}/g, 'window.showAvRegistrationModal = function(){}');
-                return origDocWriteLn.apply(this, [modified]);
-            }
-            return origDocWriteLn.apply(this, arguments);
-        };
-
-        const origCreateStyle = CSSStyleDeclaration.prototype.setProperty;
-        CSSStyleDeclaration.prototype.setProperty = function (property, value, priority) {
-            if (String(property).includes("filter") || String(property).includes("backdrop-filter")) {
-                const val = String(value);
-                if (val.includes("blur") || val.includes("safety-blur")) {
-                    console.log("[spankbang.com bypass] Blocked CSS blur:", property, value);
-                    return;
-                }
-            }
-            return origCreateStyle.apply(this, arguments);
-        };
-
-        const origCreateStyleRule = CSSStyleDeclaration.prototype.insertRule;
-        CSSStyleDeclaration.prototype.insertRule = function (rule, index) {
-            if (String(rule).includes("safety-blur") || String(rule).includes("strong-blur") || String(rule).includes("blur")) {
-                console.log("[spankbang.com bypass] Blocked CSS rule:", rule);
-                return -1;
-            }
-            return origCreateStyleRule.apply(this, arguments);
+            } catch (_) {}
+            return origFetch.apply(this, arguments);
         };
 
         document.addEventListener("DOMContentLoaded", cleanSpankbang);
