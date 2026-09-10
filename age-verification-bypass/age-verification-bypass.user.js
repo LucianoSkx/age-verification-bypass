@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.7.6
+// @version      1.7.7
 // @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (plus experimental x.com and Tor hints for rule34/xHamster). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
 // @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (mais suporte experimental a x.com e dicas Tor para rule34/xHamster). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
 // @icon         https://raw.githubusercontent.com/helloyanis/age-verification-bypass/main/icon.svg
@@ -656,29 +656,12 @@ window.veriffSDK = {
 
         const OVERLAY_SELECTORS = "#safety-blur, .strong-blur";
 
-        function hardOverride(name, fn) {
-            try {
-                Object.defineProperty(window, name, {
-                    value: fn,
-                    writable: false,
-                    configurable: false
-                });
-            } catch (e) {
-                try { window[name] = fn; } catch (_) {}
-            }
-        }
-
-        hardOverride("showAdvancedAgeVerification", function () {});
-        hardOverride("showAvRegistrationModal", function () {});
-
-        if (document.readyState === "loading") {
+        try {
             const preload = document.createElement("script");
-            preload.textContent = `
-                Object.defineProperty(window, 'showAdvancedAgeVerification', {value: function(){}, writable:false, configurable:false});
-                Object.defineProperty(window, 'showAvRegistrationModal', {value: function(){}, writable:false, configurable:false});
-            `;
+            preload.textContent = "const showAdvancedAgeVerification = function(){}; const showAvRegistrationModal = function(){};";
             (document.head || document.documentElement).appendChild(preload);
-        }
+            preload.remove();
+        } catch (_) {}
 
         function cleanSpankbang() {
             document.querySelectorAll(OVERLAY_SELECTORS).forEach(function (el) { el.remove(); });
@@ -734,26 +717,6 @@ window.veriffSDK = {
                 return origDocWriteLn.apply(this, [modified]);
             }
             return origDocWriteLn.apply(this, arguments);
-        };
-
-        const origCreateElement = Document.prototype.createElement;
-        Document.prototype.createElement = function (tagName, options) {
-            const el = origCreateElement.call(this, tagName, options);
-            if (String(tagName).toLowerCase() === "script") {
-                const origSetAttr = el.setAttribute;
-                el.setAttribute = function (name, value) {
-                    if (String(name).toLowerCase() === "src") {
-                        if (String(value).includes("spankbang.com") && (String(value).includes("/") && !String(value).includes("cdn.") && !String(value).includes("api."))) {
-                            console.log("[spankbang.com bypass] Blocked script src:", value);
-                            el.type = "javascript/blocked";
-                            el.remove();
-                            return;
-                        }
-                    }
-                    return origSetAttr.apply(this, arguments);
-                };
-            }
-            return el;
         };
 
         const origCreateStyle = CSSStyleDeclaration.prototype.setProperty;
