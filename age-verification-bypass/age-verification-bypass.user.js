@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      1.7.8
-// @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (plus experimental x.com and Tor hints for rule34/xHamster). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
-// @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay (mais suporte experimental a x.com e dicas Tor para rule34/xHamster). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
+// @version      1.7.9
+// @description  Bypass age verification popups on AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay, angelogodshackxxx.com (plus x.com/Twitter posts and profiles, and Tor hints for rule34/xHamster). Removes blur, modals and overlays on NSFW content. No data collected. Port of helloyanis' Firefox add-on.
+// @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, AliExpress, Bluesky, Reddit, SpankBang, Veriff, Cosxplay, angelogodshackxxx.com (mais posts e perfis do x.com/Twitter e dicas Tor para rule34/xHamster). Remove desfoque, popups e overlays de conteúdo NSFW. Nenhum dado é coletado. Port do add-on Firefox do helloyanis.
 // @icon         https://raw.githubusercontent.com/helloyanis/age-verification-bypass/main/icon.svg
 // @author       helloyanis (original), LucianoSkx (port)
 // @match        *://*/*
@@ -502,12 +502,14 @@
         console.log("[reddit.com bypass] Running");
 
         const nsfwSubredditPopup = "configured-xpromo-blocking_xpromo_nsfw_blocking_desktop";
+        const nsfwSubredditPopup2 = "configured-xpromo-blocking_xpromo_nsfw_blocking";
         const loginUpsell = "desktop-dynamic-upsell-dialog";
         const promptContainerTagName = "xpromo-nsfw-blocking-container";
         const TEST_IDS = ["nsfw-bypassable-modal-client-css", "experiences-client-css"];
 
         function removeRedditPopups() {
             if (document.getElementById(nsfwSubredditPopup)) document.getElementById(nsfwSubredditPopup).remove();
+            if (document.getElementById(nsfwSubredditPopup2)) document.getElementById(nsfwSubredditPopup2).remove();
             if (document.getElementById(loginUpsell)) document.getElementById(loginUpsell).remove();
             const container = document.querySelector(promptContainerTagName);
             if (container?.shadowRoot?.querySelector(".prompt")) container.shadowRoot.querySelector(".prompt").remove();
@@ -524,11 +526,11 @@
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (node.nodeType !== Node.ELEMENT_NODE) continue;
-                    if (node.id === nsfwSubredditPopup || node.id === loginUpsell) { node.remove(); continue; }
+                    if (node.id === nsfwSubredditPopup || node.id === nsfwSubredditPopup2 || node.id === loginUpsell) { node.remove(); continue; }
                     if (node.tagName === promptContainerTagName.toUpperCase()) {
                         node.shadowRoot?.querySelector?.(".prompt")?.remove();
                     }
-                    const target = node.querySelector?.(`#${CSS.escape(nsfwSubredditPopup)}`);
+                    const target = node.querySelector?.(`#${CSS.escape(nsfwSubredditPopup)}, #${CSS.escape(nsfwSubredditPopup2)}`);
                     if (target) target.remove();
                     const target2 = node.querySelector?.(promptContainerTagName);
                     if (target2 && target2.shadowRoot) {
@@ -701,36 +703,92 @@ window.veriffSDK = {
     })();
 
     // ============================
-    // x.com (Twitter) — EXPERIMENTAL / WIP
+    // x.com (Twitter)
     // ============================
     (function () {
         if (!/(^|\.)x\.com$/.test(window.location.hostname) && !/(^|\.)twitter\.com$/.test(window.location.hostname)) return;
 
-        console.log("[x.com bypass] Running (EXPERIMENTAL - WIP, may not work)");
+        console.log("[x.com bypass] Running");
+
+        function unwrapTweet(result) {
+            if (result?.__typename !== "TweetWithVisibilityResults" || !result.tweet) return result;
+            const tweet = { ...result.tweet };
+            tweet.__typename = "Tweet";
+            const user = tweet.core?.user_results?.result;
+            if (user?.profile_metadata) user.profile_metadata.profile_interstitial_type = "";
+            if (tweet.legacy) tweet.legacy.possibly_sensitive = false;
+            return tweet;
+        }
 
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
             const url = typeof args[0] === "string" ? args[0] : args[0]?.url || args[0]?.href || "";
-            if (url.includes("x.com/i/api/graphql/") && url.includes("TweetResultByRestId")) {
-                const response = await originalFetch.apply(this, args);
-                try {
-                    const data = await response.clone().json();
-                    const result = data?.data?.tweetResult?.result;
-                    if (result?.mediaVisibilityResults && result.tweet) {
-                        data.data.tweetResult.result = { ...result.tweet };
-                        data.data.tweetResult.result.__typename = "Tweet";
-                        const coreUser = data.data.tweetResult.result.core?.user_results?.result;
-                        if (coreUser?.profile_metadata) coreUser.profile_metadata.profile_interstitial_type = "";
-                        if (data.data.tweetResult.result.legacy) data.data.tweetResult.result.legacy.possibly_sensitive = false;
+            if (url.includes("x.com/i/api/graphql/")) {
+                if (url.includes("TweetResultByRestId")) {
+                    const response = await originalFetch.apply(this, args);
+                    try {
+                        const data = await response.clone().json();
+                        const result = data?.data?.tweetResult?.result;
+                        if (result?.mediaVisibilityResults && result.tweet) {
+                            data.data.tweetResult.result = unwrapTweet(result);
+                        }
+                        return new Response(JSON.stringify(data), {
+                            status: response.status,
+                            statusText: response.statusText,
+                            headers: response.headers
+                        });
+                    } catch (e) {
+                        console.error("[x.com bypass] Error:", e);
+                        return response;
                     }
-                    return new Response(JSON.stringify(data), {
-                        status: response.status,
-                        statusText: response.statusText,
-                        headers: response.headers
-                    });
-                } catch (e) {
-                    console.error("[x.com bypass] Error:", e);
-                    return response;
+                }
+
+                if (url.includes("TweetDetail")) {
+                    const response = await originalFetch.apply(this, args);
+                    try {
+                        const data = await response.clone().json();
+                        data?.data?.threaded_conversation_with_injections_v2?.instructions?.forEach(instruction => {
+                            if (instruction?.type !== "TimelineAddEntries") return;
+                            instruction.entries?.forEach(entry => {
+                                const tr = entry?.content?.itemContent?.tweet_results;
+                                if (tr) tr.result = unwrapTweet(tr.result);
+                            });
+                        });
+                        return new Response(JSON.stringify(data), {
+                            status: response.status,
+                            statusText: response.statusText,
+                            headers: response.headers
+                        });
+                    } catch (e) {
+                        console.error("[x.com bypass] Error:", e);
+                        return response;
+                    }
+                }
+
+                if (url.includes("UserOriginalsTimeline") || url.includes("UserTweetsAndReplies")) {
+                    const response = await originalFetch.apply(this, args);
+                    try {
+                        const data = await response.clone().json();
+                        data?.data?.user?.result?.timeline?.timeline?.instructions?.forEach(instruction => {
+                            if (instruction?.type !== "TimelineAddEntries") return;
+                            instruction.entries?.forEach(entry => {
+                                const tr = entry?.content?.itemContent?.tweet_results;
+                                if (tr) tr.result = unwrapTweet(tr.result);
+                                entry?.content?.items?.forEach(item => {
+                                    const itr = item?.item?.itemContent?.tweet_results;
+                                    if (itr) itr.result = unwrapTweet(itr.result);
+                                });
+                            });
+                        });
+                        return new Response(JSON.stringify(data), {
+                            status: response.status,
+                            statusText: response.statusText,
+                            headers: response.headers
+                        });
+                    } catch (e) {
+                        console.error("[x.com bypass] Error:", e);
+                        return response;
+                    }
                 }
             }
             return originalFetch.apply(this, args);
@@ -769,6 +827,29 @@ window.veriffSDK = {
 
         document.addEventListener("DOMContentLoaded", cleanOverlays);
         window.addEventListener("load", cleanOverlays);
+    })();
+
+    // ============================
+    // angelogodshackxxx.com
+    // ============================
+    (function () {
+        if (!/(^|\.)angelogodshackxxx\.com$/.test(window.location.hostname)) return;
+
+        console.log("[angelogodshackxxx.com bypass] Running");
+
+        function cleanAgeGate() {
+            document.querySelectorAll(".age-gate-modal").forEach(el => el.remove());
+            if (document.documentElement) document.documentElement.style.removeProperty("overflow");
+            if (document.body) document.body.style.removeProperty("overflow");
+        }
+
+        cleanAgeGate();
+
+        const observer = new MutationObserver(cleanAgeGate);
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+
+        document.addEventListener("DOMContentLoaded", cleanAgeGate);
+        window.addEventListener("load", cleanAgeGate);
     })();
 
     // ============================

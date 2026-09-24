@@ -18,8 +18,9 @@ Port of the Firefox add-on [helloyanis/age-verification-bypass](https://github.c
 - **[Reddit](https://reddit.com)** — NSFW communities (works best logged out; consider [redlib](https://redlib.catsarch.com/) for a fully private Reddit frontend)
 - **[SpankBang](https://spankbang.com)** — View videos even when logged out (removes blur/overlay and neutralizes the age verification modal)
 - **[Veriff](https://veriff.com)** — Works on only a few sites (don't expect it to work everywhere)
-- **[x.com / Twitter](https://x.com)** — **Experimental / WIP.** Attempts to unblur NSFW posts via the GraphQL API; does not work reliably yet (ported as-is from upstream, which does not enable it)
+- **[x.com / Twitter](https://x.com)** — Unblurs sensitive posts in single post view (`TweetResultByRestId`, `TweetDetail`) and profile timelines (`UserOriginalsTimeline`, `UserTweetsAndReplies`); requires being logged in (ported from upstream 1.2.4, still BETA upstream)
 - **[Cosxplay](https://cosxplay.com)** — Blocks the age verification script (`age.js`)
+- **[AngeloGodsHack](https://angelogodshackxxx.com)** — Removes the age gate modal
 - **[rule34.xxx](https://rule34.xxx)** — Geographical IP block — shows a Tor Browser hint (no direct bypass, same as upstream)
 - **[xHamster](https://xhamster.com)** — Geographical IP block — shows a Tor Browser hint (no direct bypass, same as upstream)
 
