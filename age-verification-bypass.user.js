@@ -424,10 +424,23 @@
 
         // The SDK arrives via <script src>, which never goes through fetch, so the
         // rule below can never fire. Shadow the global instead.
-        trapGlobal('ageverif', function () {
-            try { whenReady(avUnlock); } catch (e) {}
-            avUnlock();
-        }, avStub);
+        //
+        // onSet is dead code here: the real SDK never assigns through the accessor
+        // (it uses defineProperty or a captured local), so it does not fire. The
+        // stub is returned by the getter regardless, which is the point.
+        trapGlobal('ageverif', null, avStub);
+
+        // The real SDK still runs against its own object and locks scroll on the
+        // DOM directly, so nothing the site sees can undo it. Watch the style
+        // attribute instead of guessing when it lands: lifecycle hooks fire before
+        // the SDK gets there. Scoped to ageverif hosts, where the lock is always
+        // the gate and never a legitimate modal.
+        try {
+            new MutationObserver(avUnlock)
+                .observe(D.body || D.documentElement, { attributes: true, attributeFilter: ['style'] });
+        } catch (e) {}
+        whenReady(avUnlock);
+        W.addEventListener('load', avUnlock);
 
         rule(function (u) { return u.indexOf('www.ageverif.com/checker.js') !== -1; }, function () {
             // document.currentScript is null when the body is injected, so fall
