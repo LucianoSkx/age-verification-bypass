@@ -18,7 +18,7 @@ Port of the Firefox add-on [helloyanis/age-verification-bypass](https://github.c
 - **[Reddit](https://reddit.com)** — NSFW communities (works best logged out; consider [redlib](https://redlib.catsarch.com/) for a fully private Reddit frontend) · **partially broken** — see below
 - **[SpankBang](https://spankbang.com)** — View videos even when logged out (removes blur/overlay and neutralizes the age verification modal) · untested
 - **[Veriff](https://veriff.com)** — Works on only a few sites (don't expect it to work everywhere) · untested — only reachable inside a real Veriff integration
-- **[x.com / Twitter](https://x.com)** — Unblurs sensitive posts in single post view (`TweetResultByRestId`, `TweetDetail`) and profile timelines (`UserOriginalsTimeline`, `UserTweetsAndReplies`); requires being logged in (ported from upstream 1.2.4, still BETA upstream) · untested
+- **[x.com / Twitter](https://x.com)** — **does not match the current API** — see below. Originally targeted `TweetResultByRestId`, `TweetDetail`, `UserOriginalsTimeline` and `UserTweetsAndReplies`; requires being logged in (ported from upstream 1.2.4, still BETA upstream)
 - **[Cosxplay](https://cosxplay.com)** — Blocks the age verification script (`age.js`) · untested
 - **[AngeloGodsHack](https://angelogodshackxxx.com)** — Removes the age gate modal · untested
 - **[rule34.xxx](https://rule34.xxx)** — Geographical IP block — shows a Tor Browser hint (no direct bypass, same as upstream) · **verified**
@@ -30,6 +30,33 @@ Port of the Firefox add-on [helloyanis/age-verification-bypass](https://github.c
 - *partially broken* — a known gap, described below.
 - *untested* — covered by the test suite only. The code path exists and is
   exercised in CI, but nobody has run it against the real site. Expect breakage.
+
+### x.com: the rules target an API the app no longer uses
+
+The rules match on URL substring only, so the transport (fetch or XHR) does not
+matter — the endpoint name does. Observed on a logged-in x.com session, with the
+script installed and its hooks confirmed live (`fetchOurs`, `xhrOurs`):
+
+```
+XHR  https://x.com/i/api/1.1/flow/timeline.json          <- the home timeline
+XHR  https://x.com/i/api/1.1/friends/following/list.json
+XHR  https://x.com/i/api/graphql/viewer_context.json
+XHR  https://x.com/i/api/graphql/q4Npr1.../ViewerBadgeCounts
+XHR  https://x.com/i/api/fleets/v1/avatar_content
+```
+
+No API traffic goes through `fetch` at all. The home timeline is served by
+`/i/api/1.1/flow/timeline.json`, which no rule covers, so nothing is unblurred
+there.
+
+Whether `TweetDetail` is still used for a single post could not be established:
+the logger has to be installed before the app's first request, which means a real
+`@run-at document-start` install, and a userscript cannot be reinstalled
+programmatically. It is left unproven rather than declared dead.
+
+Rewriting this integration means targeting `flow/timeline.json` and re-checking
+the profile endpoints against the current app. That is a real piece of work, not
+a string change.
 
 ### Reddit: injected styles do not survive
 
