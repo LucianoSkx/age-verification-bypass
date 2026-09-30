@@ -21,7 +21,9 @@ jobs:
         run: |
           set -euo pipefail
           F=age-verification-bypass.user.js
-          ver() { grep -m1 -oP '(?<=^// @version +)\S+' "$1"; }
+          # awk em vez de lookbehind: o PCRE do GNU grep exige comprimento fixo
+          # e quebra com `+`.
+          ver() { awk '/^\/\/ @version/ { print $3; exit }' "$1"; }
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE="origin/${{ github.base_ref }}"
