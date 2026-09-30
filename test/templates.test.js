@@ -1,17 +1,17 @@
 'use strict';
 
 /*
- * Test suite for Age Verification Bypass v2.x.
+ * Suíte de testes do Age Verification Bypass v2.x.
  *
- * Covers three layers:
- *   1. static   — the distributable parses and carries valid metadata
- *   2. coverage — every supported service is still wired up
- *   3. runtime  — the interception engine actually runs: the fetch wrapper
- *      rewrites a matching response and leaves everything else untouched,
- *      and the <script>-SDK global traps fire the "accepted" callback.
+ * Cobre três camadas:
+ *   1. estática  — o distribuível faz parse e tem metadata válido
+ *   2. cobertura — todo serviço suportado continua conectado
+ *   3. runtime   — o engine de interceptação roda de fato: o wrapper de fetch
+ *      reescreve uma response que casa e não toca no resto, e os traps de
+ *      global dos SDKs via <script> disparam o callback "accepted".
  *
- * The runtime layer executes the userscript inside a stubbed page
- * environment via node:vm, so no browser is required in CI.
+ * A camada de runtime executa o userscript num ambiente de página stubbado
+ * via node:vm, então o CI não precisa de navegador.
  */
 
 const fs = require('fs');
@@ -42,49 +42,49 @@ function assert(cond, msg) {
     if (!cond) throw new Error(msg);
 }
 
-// --------------------------------------------------------------- static ---
+// ------------------------------------------------------------- estática ---
 
 const sources = new Map();
 DIST.forEach((file) => {
     const rel = path.relative(ROOT, file).replace(/\\/g, '/');
-    check(`${rel} exists`, () => {
-        assert(fs.existsSync(file), 'file missing');
+    check(`${rel} existe`, () => {
+        assert(fs.existsSync(file), 'arquivo ausente');
     });
     if (!fs.existsSync(file)) return;
     const src = fs.readFileSync(file, 'utf8');
     sources.set(rel, src);
 
-    check(`${rel} parses as valid JavaScript`, () => {
+    check(`${rel} faz parse como JavaScript válido`, () => {
         new Function(src);
     });
 
-    check(`${rel} carries a complete metadata block`, () => {
+    check(`${rel} tem um bloco de metadata completo`, () => {
         for (const tag of ['@name', '@namespace', '@version', '@match', '@run-at', '@grant', '@license']) {
-            assert(new RegExp('^//\\s*' + tag + '\\b', 'm').test(src), `missing ${tag}`);
+            assert(new RegExp('^//\\s*' + tag + '\\b', 'm').test(src), `falta ${tag}`);
         }
-        assert(/^\/\/\s*@version\s+2\.\d+\.\d+/m.test(src), 'version must be 2.x');
-        assert(/^\/\/\s*@run-at\s+document-start/m.test(src), '@run-at must be document-start');
-        assert(/^\/\/\s*@grant\s+none/m.test(src), '@grant none keeps us in the page world');
+        assert(/^\/\/\s*@version\s+2\.\d+\.\d+/m.test(src), 'a versão tem que ser 2.x');
+        assert(/^\/\/\s*@run-at\s+document-start/m.test(src), '@run-at tem que ser document-start');
+        assert(/^\/\/\s*@grant\s+none/m.test(src), '@grant none nos mantém no mundo da página');
     });
 
-    check(`${rel} points updates at this repo`, () => {
-        assert(src.includes('@updateURL    ' + RAW), 'updateURL must target the fork');
-        assert(src.includes('@downloadURL  ' + RAW), 'downloadURL must target the fork');
+    check(`${rel} aponta as atualizações para este repo`, () => {
+        assert(src.includes('@updateURL    ' + RAW), 'updateURL tem que apontar para o fork');
+        assert(src.includes('@downloadURL  ' + RAW), 'downloadURL tem que apontar para o fork');
     });
 
-    check(`${rel} credits upstream and the enhancer`, () => {
-        assert(/@author\s+.*helloyanis/.test(src), 'original author missing');
-        assert(/@author\s+.*LucianoSkx/.test(src), 'port author missing');
-        assert(/Hermes Agent|Nous Research/i.test(src), 'enhancer credit missing');
+    check(`${rel} credita o upstream e quem melhorou`, () => {
+        assert(/@author\s+.*helloyanis/.test(src), 'falta o autor original');
+        assert(/@author\s+.*LucianoSkx/.test(src), 'falta o autor do port');
+        assert(/Hermes Agent|Nous Research/i.test(src), 'falta o crédito de quem melhorou');
     });
 
-    check(`${rel} does not use sandbox-only GM_* APIs`, () => {
+    check(`${rel} não usa APIs GM_*, que exigem sandbox`, () => {
         assert(!/GM_addStyle\s*\(|GM_cookie\s*\(|GM_setValue\s*\(/.test(src),
-            'GM_* requires a grant and breaks page-world injection');
+            'GM_* exige grant e quebra a injeção no mundo da página');
     });
 });
 
-// ------------------------------------------------------------- coverage ---
+// ------------------------------------------------------------ cobertura ---
 
 const SERVICES = [
     ['agechecker.net', /\(\^\|\\\.\)agechecker\\\.net\$/],
@@ -103,35 +103,35 @@ const SERVICES = [
 ];
 
 for (const [rel, src] of sources) {
-    check(`${rel} still covers all ${SERVICES.length} services`, () => {
+    check(`${rel} ainda cobre os ${SERVICES.length} serviços`, () => {
         const missing = SERVICES.filter(([, re]) => !re.test(src)).map(([n]) => n);
-        assert(missing.length === 0, 'missing: ' + missing.join(', '));
+        assert(missing.length === 0, 'faltando: ' + missing.join(', '));
     });
 
-    check(`${rel} keeps the full interception engine`, () => {
+    check(`${rel} mantém o engine de interceptação completo`, () => {
         for (const fn of ['installFetch', 'installXHR', 'patchInstance', 'trapGlobal', 'ruleFor', 'withBody']) {
             assert(new RegExp('function ' + fn + '\\b').test(src), `missing engine function ${fn}`);
         }
-        assert(src.indexOf("headers.delete('content-length')") !== -1, 'response header scrub missing');
-        assert(src.indexOf("headers.delete('content-encoding')") !== -1, 'response header scrub missing');
+        assert(src.indexOf("headers.delete('content-length')") !== -1, 'falta a limpeza de header da response');
+        assert(src.indexOf("headers.delete('content-encoding')") !== -1, 'falta a limpeza de header da response');
     });
 
-    // Regressions that were live in 1.x and in the upstream 2.0.0 draft.
-    check(`${rel} leaves spankbang thumbnails alone`, () => {
-        assert(!/data-testid='video-item'>a>picture>div/.test(src), 'removes video thumbnails again');
+    // Regressões que existiam no 1.x e no rascunho 2.0.0 do upstream.
+    check(`${rel} não apaga as thumbnails do spankbang`, () => {
+        assert(!/data-testid='video-item'>a>picture>div/.test(src), 'remove as thumbnails de vídeo de novo');
     });
 
-    check(`${rel} has no polling interval`, () => {
-        assert(!/setInterval\s*\(/.test(src), 'setInterval is redundant with the MutationObserver');
+    check(`${rel} não tem interval de polling`, () => {
+        assert(!/setInterval\s*\(/.test(src), 'setInterval é redundante com o MutationObserver');
     });
 
-    check(`${rel} anchors the aliexpress host match`, () => {
-        assert(!/\(\^\|\\\.\)aliexpress\\\.(?!\[)/.test(src), 'aliexpress regex must be anchored at the end');
+    check(`${rel} ancora o match de host do aliexpress`, () => {
+        assert(!/\(\^\|\\\.\)aliexpress\\\.(?!\[)/.test(src), 'a regex do aliexpress tem que ter âncora no final');
     });
 
-    check(`${rel} survives an unreadable body without rejecting`, () => {
+    check(`${rel} sobrevive a corpo ilegível sem rejeitar`, () => {
         assert(/resp\.clone\(\)\.text\(\)\.then\([^]*?\)\.catch\(/.test(src),
-            'installFetch needs a .catch after the body read');
+            'installFetch precisa de um .catch depois da leitura do corpo');
     });
 }
 
@@ -177,8 +177,8 @@ function makeSandbox(hostname, fetchImpl) {
         addEventListener() {},
         removeEventListener() {},
     };
-    // A real-enough XHR: the engine's patchInstance needs prototype accessors for
-    // both responseText and response, not plain data properties.
+    // XHR suficiente para o teste: o patchInstance do engine precisa de accessors
+    // no prototype para responseText e response, não de propriedades de dados.
     class XHR {
         constructor() {
             this.readyState = 0;
@@ -218,7 +218,8 @@ function makeSandbox(hostname, fetchImpl) {
             crypto: { randomUUID: () => '00000000-0000-4000-8000-000000000000' },
             fetch: fetchImpl,
             XMLHttpRequest: XHR,
-            // Recorded rather than scheduled, so a test can drive the re-arm ticks.
+            // Registrado em vez de agendado, para o teste poder disparar os
+            // ticks de re-arm.
             __timers: timers,
         },
         document: doc,
@@ -237,8 +238,8 @@ function makeSandbox(hostname, fetchImpl) {
 }
 
 function loadScript(sandbox, src) {
-    // strip the metadata block: keep everything after the closing marker.
-    // (String.split(sep, 1) trims the array, it does NOT maxsplit like Python.)
+    // remove o bloco de metadata: fica tudo depois do marcador de fechamento.
+    // (String.split(sep, 1) recorta o array, NÃO faz maxsplit como no Python.)
     const marker = '// ==/UserScript==';
     const idx = src.lastIndexOf(marker);
     const body = idx === -1 ? src : src.slice(idx + marker.length);
@@ -260,102 +261,103 @@ if (rootSrc) {
         });
     }
 
-    runRuntime('engine installs a fetch wrapper on a matched host', 'agechecker.net', (s) => {
-        assert(typeof s.window.fetch === 'function', 'fetch disappeared');
-        assert(s.window.fetch !== s.window.__originalFetch, 'fetch was not patched');
-        assert(String(s.window.fetch).indexOf('ruleFor') !== -1, 'wrapper body not present');
+    runRuntime('o engine instala um wrapper de fetch em host que casa', 'agechecker.net', (s) => {
+        assert(typeof s.window.fetch === 'function', 'o fetch sumiu');
+        assert(s.window.fetch !== s.window.__originalFetch, 'o fetch não foi patcheado');
+        assert(String(s.window.fetch).indexOf('ruleFor') !== -1, 'o corpo do wrapper não está presente');
     });
 
-    runRuntime('engine wraps XHR open/send on a matched host', 'agechecker.net', (s) => {
+    runRuntime('o engine embrulha open/send de XHR em host que casa', 'agechecker.net', (s) => {
         const proto = s.window.XMLHttpRequest.prototype;
-        assert(String(proto.open).indexOf('__agebypass') !== -1, 'open not hooked');
-        assert(String(proto.send).indexOf('patchInstance') !== -1, 'send not hooked');
+        assert(String(proto.open).indexOf('__agebypass') !== -1, 'open não foi hooked');
+        assert(String(proto.send).indexOf('patchInstance') !== -1, 'send não foi hooked');
     });
 
-    runRuntime('config trap fires an "accepted" callback on assignment', 'agechecker.net', (s) => {
+    runRuntime('o trap de config dispara o callback "accepted" na atribuição', 'agechecker.net', (s) => {
         let captured = null;
         s.window.AgeCheckerConfig = {
             onstatuschanged: (v) => { captured = v; },
             redirect_url: '',
         };
-        assert(captured !== null, 'onstatuschanged never fired');
-        assert(captured.status === 'accepted', 'status must be accepted, got ' + captured.status);
+        assert(captured !== null, 'onstatuschanged nunca disparou');
+        assert(captured.status === 'accepted', 'o status tem que ser accepted, veio ' + captured.status);
     });
 
-    runRuntime('script-tag SDK globals are served by stubs', 'agechecker.net', (s) => {
-        assert(typeof s.window.AgeCheckerAPI.show === 'function', 'AgeCheckerAPI stub missing');
-        assert(typeof s.window.AgeCheckerAPI.close === 'function', 'AgeCheckerAPI.close stub missing');
+    runRuntime('globais de SDK via script-tag são servidos por stubs', 'agechecker.net', (s) => {
+        assert(typeof s.window.AgeCheckerAPI.show === 'function', 'falta o stub de AgeCheckerAPI');
+        assert(typeof s.window.AgeCheckerAPI.close === 'function', 'falta o stub de AgeCheckerAPI.close');
     });
 
-    // NOTE: installFetch wraps window.fetch on every host; the rule table is what
-    // decides whether a body is touched. So "not patched" is the wrong assertion —
-    // pass-through fidelity is verified asynchronously below.
-    // ageverif's SDK arrives via <script src>, which bypasses fetch entirely.
-    // The trap must shadow it, not merely observe it.
-    runRuntime('ageverif shadows the SDK global', 'ageverif.com', (s) => {
+    // NOTA: installFetch embrulha window.fetch em todo host; o que decide se um
+    // corpo é tocado é a tabela de regras. Então "não patcheado" é a asserção
+    // errada — a fidelidade do pass-through é verificada de forma assíncrona
+    // mais abaixo.
+    // O SDK do ageverif chega por <script src>, que ignora o fetch por completo.
+    // O trap precisa sombrear, não só observar.
+    runRuntime('o ageverif sombreia o global do SDK', 'ageverif.com', (s) => {
         const realSdk = { _decodeJwt: () => {}, _emitter: {}, _ready: false, verified: false };
         s.window.ageverif = realSdk;
         const seen = s.window.ageverif;
-        assert(seen !== realSdk, 'the real SDK is still reachable, the trap only observed it');
-        assert(seen.verified === true, 'verified must read true');
-        assert(seen.requiresVerification === false, 'requiresVerification must read false');
-        assert(seen._ready === true && seen._successful === true, 'state flags must read true');
-        assert(typeof seen.blur === 'function' && typeof seen.unblur === 'function', 'blur API missing');
-        assert(seen.verification && seen.verification.token, 'verification payload missing');
-        assert(s.window.AgeCheckerAPI === undefined, 'agechecker traps must not leak onto this host');
+        assert(seen !== realSdk, 'o SDK real continua acessível, o trap só observou');
+        assert(seen.verified === true, 'verified tem que ler true');
+        assert(seen.requiresVerification === false, 'requiresVerification tem que ler false');
+        assert(seen._ready === true && seen._successful === true, 'as flags de estado têm que ler true');
+        assert(typeof seen.blur === 'function' && typeof seen.unblur === 'function', 'falta a API de blur');
+        assert(seen.verification && seen.verification.token, 'falta o payload de verification');
+        assert(s.window.AgeCheckerAPI === undefined, 'os traps do agechecker não podem vazar para este host');
     });
 
-    runRuntime('ageverif stub fires site listeners on start', 'ageverif.com', (s) => {
+    runRuntime('o stub do ageverif dispara os listeners do site no start', 'ageverif.com', (s) => {
         s.window.ageverif = { _decodeJwt: () => {} };
         const got = [];
         s.window.ageverif.on('success', (p) => got.push(p && p.status));
         s.window.ageverif.start();
-        assert(got.join(',') === 'success', 'start() must emit success, got: ' + JSON.stringify(got));
+        assert(got.join(',') === 'success', 'start() tem que emitir success, veio: ' + JSON.stringify(got));
     });
 
-    // Measured on bsky.app: the app reassigns XMLHttpRequest.prototype.open after
-    // document-start, clobbering our hook. Interception must survive that.
-    runRuntime('XHR survives a clobbered prototype.open', 'agechecker.net', (s) => {
+    // Medido no bsky.app: o app reatribui XMLHttpRequest.prototype.open depois do
+    // document-start, sobrescrevendo nosso hook. A interceptação tem que sobreviver.
+    runRuntime('XHR sobrevive a prototype.open sobrescrito', 'agechecker.net', (s) => {
         const proto = s.window.XMLHttpRequest.prototype;
-        // A library wrapper: no longer our hook, but still behaves natively, so
-        // responseURL gets populated exactly as the browser would.
+        // Wrapper de biblioteca: não é mais o nosso hook, mas se comporta como
+        // o nativo, então responseURL é populado igual o navegador faria.
         proto.open = function (method, url) { this.readyState = 1; this.responseURL = String(url); };
         const xhr = new s.window.XMLHttpRequest();
         xhr.responseType = 'json';
         xhr.open('POST', 'https://api.agechecker.net/v1/create');
         xhr.payload = '{"original":true}';
         xhr.send();
-        assert(xhr.__agebypass_url === undefined, 'open should not be our hook any more');
+        assert(xhr.__agebypass_url === undefined, 'open não deve mais ser o nosso hook');
         const data = xhr.response;
         assert(data && data.status === 'accepted',
-            'rewrite must fall back to responseURL, got ' + JSON.stringify(data));
+            'a reescrita tem que cair em responseURL, veio ' + JSON.stringify(data));
     });
 
-    // Measured on reddit.com: the page reassigned window.fetch to the native
-    // function after document-start, silently disarming every fetch rule.
-    runRuntime('fetch interception survives the page replacing window.fetch', 'agechecker.net', (s) => {
+    // Medido no reddit.com: a página reatribuiu window.fetch para a função nativa
+    // depois do document-start, desarmando em silêncio toda regra de fetch.
+    runRuntime('a interceptação de fetch sobrevive à página trocando window.fetch', 'agechecker.net', (s) => {
         const ours = s.window.fetch;
         s.window.fetch = function () { return Promise.resolve(new Response('{}')); };
-        assert(!/ruleFor/.test(String(s.window.fetch)), 'precondition: fetch is not ours');
+        assert(!/ruleFor/.test(String(s.window.fetch)), 'pré-condição: o fetch não é o nosso');
         s.window.__timers.forEach((fn) => fn());
         assert(s.window.fetch !== ours && /ruleFor/.test(String(s.window.fetch)),
-            're-arm must re-wrap the replaced fetch');
+            'o re-arm tem que re-embrulhar o fetch trocado');
     });
 
-    runRuntime('re-arm does not stack wrappers', 'agechecker.net', (s) => {
+    runRuntime('o re-arm não empilha wrappers', 'agechecker.net', (s) => {
         const first = s.window.fetch;
         s.window.__timers.forEach((fn) => fn());
-        assert(s.window.fetch === first, 're-arming our own wrapper must be a no-op');
+        assert(s.window.fetch === first, 're-armar o nosso próprio wrapper tem que ser no-op');
     });
 
-    runRuntime('non-matching hosts register no rewriting rule', 'example.com', (s) => {
+    runRuntime('hosts que não casam não registram regra de reescrita', 'example.com', (s) => {
         let called = 0;
         s.window.fetch('https://example.com/api/data').then(() => { called++; });
-        assert(called === 0, 'fetch must stay async');
+        assert(called === 0, 'o fetch tem que continuar assíncrono');
     });
 }
 
-// ---------------------------------------------------------------- async ---
+// ---------------------------------------------------------- assíncrono ---
 
 async function asyncChecks() {
     if (!rootSrc) {
@@ -379,21 +381,21 @@ async function asyncChecks() {
         });
     }
 
-    await runtimeAsync('rewrites api.agechecker.net/v1/create to accepted', async (s) => {
+    await runtimeAsync('reescreve api.agechecker.net/v1/create para accepted', async (s) => {
         const resp = await s.window.fetch('https://api.agechecker.net/v1/create', { method: 'POST' });
         const text = await resp.text();
         const data = JSON.parse(text);
         assert(data.status === 'accepted', 'expected accepted, got ' + text);
-        assert(typeof data.uuid === 'string' && data.uuid.length > 0, 'uuid missing');
+        assert(typeof data.uuid === 'string' && data.uuid.length > 0, 'falta o uuid');
     });
 
-    await runtimeAsync('leaves unrelated responses byte-identical', async (s) => {
+    await runtimeAsync('deixa responses sem relação byte a byte idênticas', async (s) => {
         const resp = await s.window.fetch('https://example.com/api/data');
         const text = await resp.text();
-        assert(text === '{"original":true}', 'body was touched: ' + text);
+        assert(text === '{"original":true}', 'o corpo foi tocado: ' + text);
     });
 
-    // On a host with no rule, the wrapper must hand back the *same* Response it got.
+    // Num host sem regra, o wrapper tem que devolver a *mesma* Response que recebeu.
     await (function () {
         return new Promise((resolve) => {
             const ORIG = new Response('{"original":true}', { status: 200, headers: { 'content-type': 'application/json' } });
@@ -403,17 +405,17 @@ async function asyncChecks() {
             sandbox.window
                 .fetch('https://example.com/api/data')
                 .then((resp) => {
-                    assert(resp === ORIG, 'unrelated response must be passed through by identity');
+                    assert(resp === ORIG, 'a response sem relação tem que passar por identidade');
                     passed++;
-                    console.log('OK   unrelated hosts pass the original Response through');
+                    console.log('OK   hosts sem relação passam a Response original adiante');
                 })
-                .catch((e) => { failures++; console.log('FAIL unrelated hosts pass the original Response through -', e.message); })
+                .catch((e) => { failures++; console.log('FAIL hosts sem relação passam a Response original adiante -', e.message); })
                 .then(resolve);
         });
     })();
 
-    // A matching rule whose body cannot be read must degrade to the original
-    // response, not reject: callers would otherwise see a failed request.
+    // Uma regra que casa, cujo corpo não pode ser lido, tem que degradar para a
+    // response original, não rejeitar: senão quem chama veria um request falho.
     await (function () {
         return new Promise((resolve) => {
             const UNREADABLE = {
@@ -428,16 +430,16 @@ async function asyncChecks() {
             sandbox.window
                 .fetch('https://cdn.agechecker.net/static/popup/v1/popup.js')
                 .then((resp) => {
-                    assert(resp === UNREADABLE, 'must fall back to the original response');
+                    assert(resp === UNREADABLE, 'tem que cair na response original');
                     passed++;
-                    console.log('OK   unreadable body falls back to the original response');
+                    console.log('OK   corpo ilegível cai na response original');
                 })
-                .catch((e) => { failures++; console.log('FAIL unreadable body falls back to the original response -', e.message); })
+                .catch((e) => { failures++; console.log('FAIL corpo ilegível cai na response original -', e.message); })
                 .then(resolve);
         });
     })();
 
-    // XHR with responseType 'json': the browser already parsed, the rules are text.
+    // XHR com responseType 'json': o browser já fez o parse, as regras são texto.
     await (function () {
         return new Promise((resolve) => {
             const sandbox = makeSandbox('agechecker.net', async () => new Response('{}'));
@@ -451,12 +453,12 @@ async function asyncChecks() {
                 .then(() => {
                     const data = xhr.response;
                     assert(data && data.status === 'accepted',
-                        'json XHR was not rewritten, got ' + JSON.stringify(data));
-                    assert(typeof data.uuid === 'string' && data.uuid.length > 0, 'uuid missing');
+                        'XHR json não foi reescrito, veio ' + JSON.stringify(data));
+                    assert(typeof data.uuid === 'string' && data.uuid.length > 0, 'falta o uuid');
                     passed++;
-                    console.log('OK   XHR responseType=json is rewritten');
+                    console.log('OK   XHR responseType=json é reescrito');
                 })
-                .catch((e) => { failures++; console.log('FAIL XHR responseType=json is rewritten -', e.message); })
+                .catch((e) => { failures++; console.log('FAIL XHR responseType=json é reescrito -', e.message); })
                 .then(resolve);
         });
     })();
