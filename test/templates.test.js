@@ -287,13 +287,26 @@ if (rootSrc) {
     // decides whether a body is touched. So "not patched" is the wrong assertion —
     // pass-through fidelity is verified asynchronously below.
     // ageverif's SDK arrives via <script src>, which bypasses fetch entirely.
-    // Without this trap its rule can never fire.
-    runRuntime('ageverif traps its SDK global', 'ageverif.com', (s) => {
-        const before = s.window.ageverif;
-        s.window.ageverif = { _ready: () => {}, _successful: () => {} };
-        assert(s.window.ageverif !== before || s.window.ageverif._ready,
-            'ageverif global is not trapped, the checker.js rule can never fire');
+    // The trap must shadow it, not merely observe it.
+    runRuntime('ageverif shadows the SDK global', 'ageverif.com', (s) => {
+        const realSdk = { _decodeJwt: () => {}, _emitter: {}, _ready: false, verified: false };
+        s.window.ageverif = realSdk;
+        const seen = s.window.ageverif;
+        assert(seen !== realSdk, 'the real SDK is still reachable, the trap only observed it');
+        assert(seen.verified === true, 'verified must read true');
+        assert(seen.requiresVerification === false, 'requiresVerification must read false');
+        assert(seen._ready === true && seen._successful === true, 'state flags must read true');
+        assert(typeof seen.blur === 'function' && typeof seen.unblur === 'function', 'blur API missing');
+        assert(seen.verification && seen.verification.token, 'verification payload missing');
         assert(s.window.AgeCheckerAPI === undefined, 'agechecker traps must not leak onto this host');
+    });
+
+    runRuntime('ageverif stub fires site listeners on start', 'ageverif.com', (s) => {
+        s.window.ageverif = { _decodeJwt: () => {} };
+        const got = [];
+        s.window.ageverif.on('success', (p) => got.push(p && p.status));
+        s.window.ageverif.start();
+        assert(got.join(',') === 'success', 'start() must emit success, got: ' + JSON.stringify(got));
     });
 
     runRuntime('non-matching hosts register no rewriting rule', 'example.com', (s) => {

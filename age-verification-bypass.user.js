@@ -373,27 +373,61 @@
     (function () {
         if (!/(^|\.)ageverif\.com$/.test(HOST)) return;
 
-        function avComplete() {
+        function avUnlock() {
+            try { D.documentElement.style.removeProperty('overflow'); } catch (e) {}
+            try { if (D.body) D.body.style.removeProperty('overflow'); } catch (e) {}
+            try { D.documentElement.style.removeProperty('filter'); } catch (e) {}
+            try { if (D.body) D.body.style.removeProperty('filter'); } catch (e) {}
+        }
+
+        // Shadows the SDK entirely. The real one is only ever assigned to the
+        // accessor, never returned by the getter, so the site always sees this.
+        // Shape taken from the live SDK on demo.ageverif.com: _ready and
+        // _successful are booleans, verified/requiresVerification are the state
+        // the site branches on, blur/unblur own the page filter.
+        function avStub() {
+            var handlers = {};
             var v = {
                 uid: randStr(24), country: 'FR', countrySubdivision: null,
                 assuranceLevel: 'STRICT', ageThreshold: 0, reused: false,
                 expiresIn: 100 * 365 * 24 * 60 * 60, token: randStr(48)
             };
             v.expiresAt = Math.floor(Date.now() / 1000) + v.expiresIn;
-            var sdk = W.ageverif;
-            if (!sdk || typeof sdk !== 'object') return;
-            var ready = { verification: v }, ok = { verification: v };
-            try { if (typeof sdk._ready === 'function') sdk._ready(ready); } catch (e) {}
-            try { if (typeof sdk.on === 'function') sdk.on('ready', ready); } catch (e) {}
-            try { if (typeof sdk._successful === 'function') sdk._successful(ok); } catch (e) {}
+            function emit(ev) {
+                (handlers[ev] || []).slice().forEach(function (fn) {
+                    try { fn({ verification: v, status: 'success' }); } catch (e) {}
+                });
+            }
+            return {
+                _ready: true, _successful: true, _debug: false, _scriptSrc: '',
+                requiresVerification: false, verified: true, verification: v,
+                client: {}, options: {}, language: 'en',
+                start: function () { emit('ready'); emit('success'); },
+                on: function (ev, fn) { (handlers[ev] = handlers[ev] || []).push(fn); },
+                off: function (ev, fn) {
+                    var l = handlers[ev] || [], i = l.indexOf(fn);
+                    if (i > -1) l.splice(i, 1);
+                },
+                blur: function () {},
+                unblur: function () { avUnlock(); },
+                redirect: function () {},
+                getRedirectUrl: function () { return null; },
+                getPortableVerification: function () { return v; },
+                setLanguage: function () {}, setChallenges: function () {},
+                clear: function () {}, destroy: function () {}, _save: function () {},
+                _apiRequest: function () {
+                    return W.Promise.resolve({ status: 'success', verification: v });
+                },
+                _log: function () {}, _stats: function () {}
+            };
         }
 
         // The SDK arrives via <script src>, which never goes through fetch, so the
-        // rule below can never fire. Trap the global instead: the moment the page
-        // assigns its config object, report the verification.
-        trapGlobal('ageverif', function (sdk) {
-            try { whenReady(function () { avComplete(); }); } catch (e) {}
-        });
+        // rule below can never fire. Shadow the global instead.
+        trapGlobal('ageverif', function () {
+            try { whenReady(avUnlock); } catch (e) {}
+            avUnlock();
+        }, avStub);
 
         rule(function (u) { return u.indexOf('www.ageverif.com/checker.js') !== -1; }, function () {
             // document.currentScript is null when the body is injected, so fall
