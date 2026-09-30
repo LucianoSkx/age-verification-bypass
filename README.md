@@ -22,6 +22,7 @@ com um engine de interceptação de `fetch`, XHR e SDKs carregados por `<script>
 - **[AliExpress](https://aliexpress.com/)** — Itens "For adults" (remove blur, modal e overlays, incluindo produtos sugeridos) · **verificado** (regra de de-blur; não exercitada num listing adulto real)
 - **[Bluesky](https://bsky.app)** — Posts sensíveis sem login (automod + posts autolabelados); mídia revelada ao clicar em "Show" · não testado
 - **[Reddit](https://reddit.com)** — Comunidades NSFW (funciona melhor deslogado; considere o [redlib](https://redlib.catsarch.com/) para um frontend Reddit totalmente privado) · **parcialmente quebrado** — ver abaixo
+- **[RedGIFs](https://www.redgifs.com/)** — Libera o bloqueio geográfico reescrevendo `api.redgifs.com/v2/geolocation` · não testado — o bloqueio é geogateado e não vem ativo do Brasil
 - **[SpankBang](https://spankbang.com)** — Ver vídeos mesmo deslogado (remove blur/overlay e neutraliza o modal de verificação) · não testado
 - **[Veriff](https://veriff.com)** — Funciona em poucos sites (não espere que funcione em todos) · não testado — só alcançável dentro de uma integração real do Veriff
 - **[x.com / Twitter](https://x.com)** — **as regras não batem com a API atual** — ver abaixo. Originalmente mirava `TweetResultByRestId`, `TweetDetail`, `UserOriginalsTimeline` e `UserTweetsAndReplies`; exige estar logado (port do upstream 1.2.4, ainda BETA no upstream)
@@ -40,6 +41,19 @@ com um engine de interceptação de `fetch`, XHR e SDKs carregados por `<script>
 Um CI verde significa que o engine de interceptação é internamente consistente,
 não que todo serviço listado funciona. Vários destes só são alcançáveis dentro
 de uma integração real de terceiro.
+
+### Opções
+
+O add-on original tem um popup de configurações. Userscript não tem, então as
+opções vêm de `localStorage`, no console:
+
+```js
+// Comportamento do Bluesky: 'media' (padrão) | 'none' | 'content'
+localStorage.setItem('avb_bsky_blurs', 'none');
+```
+
+Só o Bluesky tem opção por enquanto — os outros serviços seguem o comportamento
+fixo do upstream.
 
 ### Reddit: styles injetados não sobrevivem
 

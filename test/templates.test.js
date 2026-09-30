@@ -94,6 +94,7 @@ const SERVICES = [
     ['aliexpress', /aliexpress/],
     ['bsky', /bsky/],
     ['reddit', /reddit/],
+    ['redgifs', /redgifs/],
     ['spankbang', /spankbang/],
     ['x.com', /x\\\.com/],
     ['cosxplay', /cosxplay/],
@@ -218,6 +219,11 @@ function makeSandbox(hostname, fetchImpl) {
             crypto: { randomUUID: () => '00000000-0000-4000-8000-000000000000' },
             fetch: fetchImpl,
             XMLHttpRequest: XHR,
+            localStorage: {
+                _v: {},
+                getItem(k) { return Object.prototype.hasOwnProperty.call(this._v, k) ? this._v[k] : null; },
+                setItem(k, v) { this._v[k] = String(v); },
+            },
             // Registrado em vez de agendado, para o teste poder disparar os
             // ticks de re-arm.
             __timers: timers,
@@ -459,6 +465,57 @@ async function asyncChecks() {
                     console.log('OK   XHR responseType=json é reescrito');
                 })
                 .catch((e) => { failures++; console.log('FAIL XHR responseType=json é reescrito -', e.message); })
+                .then(resolve);
+        });
+    })();
+
+    // Payload real de api.redgifs.com/v2/geolocation, capturado na pagina ao vivo:
+    // {"blocked":false,"country":"BR","state":null}. Do Brasil `blocked` ja vem
+    // false, entao o caso que importa e o true.
+    await (function () {
+        return new Promise((resolve) => {
+            const originalFetch = async () => new Response(
+                '{"blocked":true,"country":"XX","state":null}',
+                { status: 200, headers: { 'content-type': 'application/json' } });
+            const sandbox = makeSandbox('www.redgifs.com', originalFetch);
+            loadScript(sandbox, rootSrc);
+            sandbox.window
+                .fetch('https://api.redgifs.com/v2/geolocation')
+                .then((resp) => resp.json())
+                .then((data) => {
+                    assert(data.blocked === false, 'blocked tem que virar false, veio ' + JSON.stringify(data));
+                    assert(data.country === 'XX', 'o resto do payload tem que ficar intacto');
+                    passed++;
+                    console.log('OK   redgifs desbloqueia o geolocation');
+                })
+                .catch((e) => { failures++; console.log('FAIL redgifs desbloqueia o geolocation -', e.message); })
+                .then(resolve);
+        });
+    })();
+
+    // O upstream 1.3.1 tornou o comportamento do bsky configuravel. Sem popup de
+    // add-on, a opcao vem de localStorage. O default tem que continuar 'media'.
+    await (function () {
+        return new Promise((resolve) => {
+            const payload = JSON.stringify({
+                views: [{ policies: { labelValueDefinitions: [], labelValues: ['porn'] } }],
+            });
+            const originalFetch = async () => new Response(
+                payload, { status: 200, headers: { 'content-type': 'application/json' } });
+            const sandbox = makeSandbox('bsky.app', originalFetch);
+            loadScript(sandbox, rootSrc);
+            const url = 'https://public.api.bsky.app/xrpc/app.bsky.labeler.getServices';
+            sandbox.window.fetch(url).then((r) => r.json()).then((d) => {
+                assert(d.views[0].policies.labelValueDefinitions[0].blurs === 'media',
+                    'o default tem que ser media, veio ' + JSON.stringify(d.views[0].policies.labelValueDefinitions[0]));
+                sandbox.window.localStorage.setItem('avb_bsky_blurs', 'none');
+                return sandbox.window.fetch(url);
+            }).then((r) => r.json()).then((d) => {
+                assert(d.views[0].policies.labelValueDefinitions[0].blurs === 'none',
+                    'localStorage tem que sobrescrever, veio ' + JSON.stringify(d.views[0].policies.labelValueDefinitions[0]));
+                passed++;
+                console.log('OK   bsky lê blurs do localStorage, com default media');
+            }).catch((e) => { failures++; console.log('FAIL bsky lê blurs do localStorage, com default media -', e.message); })
                 .then(resolve);
         });
     })();

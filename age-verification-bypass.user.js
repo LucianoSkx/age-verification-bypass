@@ -2,7 +2,7 @@
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
 // @version      2.0.0
-// @description  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, Veriff, AliExpress, Bluesky, Reddit, SpankBang, Cosxplay, angelogodshackxxx.com, x.com/Twitter, mais dicas Tor para rule34/xHamster. Intercepta fetch, XHR e SDKs carregados por <script>. Nenhum dado é coletado. Port do add-on Firefox do helloyanis; engine de interceptação por xtalia/Hermes Agent.
+// @description  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, Veriff, AliExpress, Bluesky, Reddit, RedGIFs, SpankBang, Cosxplay, angelogodshackxxx.com, x.com/Twitter, mais dicas Tor para rule34/xHamster. Intercepta fetch, XHR e SDKs carregados por <script>. Nenhum dado é coletado. Port do add-on Firefox do helloyanis; engine de interceptação por xtalia/Hermes Agent.
 // @author       helloyanis (original), xtalia/Hermes Agent (engine de interceptação), LucianoSkx (port e correções)
 // @match        *://*/*
 // @run-at       document-start
@@ -654,6 +654,17 @@
             return post;
         }
 
+        // O upstream 1.3.1 tornou isso configurável. Userscript não tem popup como
+        // o add-on, então a opção vem de localStorage, sem precisar de grant:
+        //   avb_bsky_blurs = 'media' (padrão) | 'none' | 'content'
+        function blurs() {
+            try {
+                var v = W.localStorage.getItem('avb_bsky_blurs');
+                if (v === 'none' || v === 'content' || v === 'media') return v;
+            } catch (e) {}
+            return 'media';
+        }
+
         rule(function (u) { return u.indexOf('app.bsky.labeler.getServices') !== -1; }, function (raw) {
             return jsonRewrite(raw, function (data) {
                 (data.views || []).forEach(function (view) {
@@ -661,7 +672,7 @@
                     p.labelValueDefinitions = [];
                     (p.labelValues || []).forEach(function (label) {
                         p.labelValueDefinitions.push({
-                            adultOnly: false, blurs: 'media', defaultSetting: 'show', identifier: label,
+                            adultOnly: false, blurs: blurs(), defaultSetting: 'show', identifier: label,
                             locales: [{ description: 'Labeled as ' + label + '; unlocked by age-verification bypass. Click "show" for media.', lang: 'en', name: label }],
                             severity: 'inform'
                         });
@@ -723,6 +734,11 @@
                 if (STYLE_IDS.indexOf(el.getAttribute('data-testid')) !== -1) el.remove();
             });
             D.querySelectorAll('style').forEach(function (el) { if (el.textContent && el.textContent.indexOf('.rpl-scroll-lock') !== -1) el.remove(); });
+            // Mídia borrada nos posts. O Reddit marca o container com o atributo
+            // `blurred`; tirar o atributo é o que o desborra. Vem do upstream 1.3.1.
+            D.querySelectorAll('shreddit-blurred-container[blurred]').forEach(function (el) {
+                el.removeAttribute('blurred');
+            });
         }
 
         clean();
@@ -730,6 +746,26 @@
         new MutationObserver(clean).observe(D.head || D.documentElement, { childList: true, subtree: true });
 
         log('reddit armado');
+    })();
+
+    // ---------------------------------------------------------- redgifs -----
+    (function () {
+        if (!/(^|\.)redgifs\.com$/.test(HOST)) return;
+
+        // O upstream 1.3.1 filtra essa URL globalmente, num background script. Aqui
+        // o engine é page-scoped, então a regra só dispara com a página do redgifs
+        // aberta — que é quando a chamada acontece.
+        //
+        // Resposta real capturada: {"blocked":false,"country":"BR","state":null}
+        rule(function (u) { return u.indexOf('api.redgifs.com/v2/geolocation') !== -1; },
+            function (raw) {
+                return jsonRewrite(raw, function (data) {
+                    data.blocked = false;
+                    return data;
+                });
+            });
+
+        log('redgifs armado');
     })();
 
     // ------------------------------------------------------ spankbang ------
