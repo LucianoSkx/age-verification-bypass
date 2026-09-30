@@ -155,7 +155,9 @@
     function installFetch() {
         var origFetch = W.fetch;
         if (typeof origFetch !== 'function') return;
-        W.fetch = function (input, init) {
+        // Already ours: re-arming must not stack wrappers.
+        if (origFetch.__agebypass) return;
+        var wrapped = function (input, init) {
             var url = urlOf(input);
             var p = origFetch.apply(this, arguments);
             if (!url || !ruleFor(url)) return p;
@@ -175,6 +177,8 @@
                 } catch (e) { log('fetch transform failed', url, e); return resp; }
             });
         };
+        try { wrapped.__agebypass = true; } catch (e) {}
+        W.fetch = wrapped;
         log('fetch interception installed');
     }
 
@@ -880,4 +884,19 @@
     // ----------------------------------------------------- start engines ----
     installFetch();
     installXHR();
+
+    // A page that reassigns window.fetch or XMLHttpRequest.prototype.open during
+    // its own bootstrap silently disarms interception. Measured on reddit.com:
+    // window.fetch was back to `function () { [native code] }` and the XHR
+    // interceptor was gone. Re-arm a few times; both installers are idempotent.
+    //
+    // Bounded on purpose. Re-adding *styles* in a loop is NOT safe: reddit also
+    // deletes injected <style> elements, and fighting that livelocks the tab
+    // (verified — the page stopped responding to script execution entirely).
+    [0, 250, 1000, 3000].forEach(function (ms) {
+        setTimeout(function () {
+            installFetch();
+            installXHR();
+        }, ms);
+    });
 })();

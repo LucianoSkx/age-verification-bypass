@@ -205,6 +205,7 @@ function makeSandbox(hostname, fetchImpl) {
         },
     });
 
+    const timers = [];
     const sandbox = {
         window: {
             location: { hostname, pathname: '/', href: 'https://' + hostname + '/' },
@@ -217,11 +218,13 @@ function makeSandbox(hostname, fetchImpl) {
             crypto: { randomUUID: () => '00000000-0000-4000-8000-000000000000' },
             fetch: fetchImpl,
             XMLHttpRequest: XHR,
+            // Recorded rather than scheduled, so a test can drive the re-arm ticks.
+            __timers: timers,
         },
         document: doc,
         console: { log() {}, warn() {}, error() {}, debug() {} },
-        setTimeout,
-        clearTimeout,
+        setTimeout(fn, ms) { timers.push(fn); return timers.length; },
+        clearTimeout() {},
         setInterval,
         clearInterval,
         Response,
@@ -326,6 +329,23 @@ if (rootSrc) {
         const data = xhr.response;
         assert(data && data.status === 'accepted',
             'rewrite must fall back to responseURL, got ' + JSON.stringify(data));
+    });
+
+    // Measured on reddit.com: the page reassigned window.fetch to the native
+    // function after document-start, silently disarming every fetch rule.
+    runRuntime('fetch interception survives the page replacing window.fetch', 'agechecker.net', (s) => {
+        const ours = s.window.fetch;
+        s.window.fetch = function () { return Promise.resolve(new Response('{}')); };
+        assert(!/ruleFor/.test(String(s.window.fetch)), 'precondition: fetch is not ours');
+        s.window.__timers.forEach((fn) => fn());
+        assert(s.window.fetch !== ours && /ruleFor/.test(String(s.window.fetch)),
+            're-arm must re-wrap the replaced fetch');
+    });
+
+    runRuntime('re-arm does not stack wrappers', 'agechecker.net', (s) => {
+        const first = s.window.fetch;
+        s.window.__timers.forEach((fn) => fn());
+        assert(s.window.fetch === first, 're-arming our own wrapper must be a no-op');
     });
 
     runRuntime('non-matching hosts register no rewriting rule', 'example.com', (s) => {
