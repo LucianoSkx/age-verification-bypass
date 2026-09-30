@@ -17,22 +17,13 @@
 
 
 /*
- * POR QUE ESTA VERSÃO:
- * O port 1.x patcheava apenas `window.fetch`, de dentro do sandbox do
- * userscript, então a página nunca via a patch. Esta reescrita corrige isso e
- * outras três lacunas:
- *   1. roda no mundo da página (@grant none, unsafeWindow quando há grant)
- *   2. intercepta fetch E XMLHttpRequest por uma única tabela de regras
- *   3. antecipa SDKs carregados por <script> travando os globals de config
- *   4. limpa content-length/content-encoding ao reescrever corpos
- *
- * Engine de interceptação por xtalia/Hermes Agent, portado de
- * https://github.com/xtalia/age-verification-bypass
- *
  * LIMITAÇÃO CONHECIDA: se o gerenciador recusar a injeção em MAIN_WORLD por
  * causa do CSP da página, @grant none também revoga o unsafeWindow e todas as
  * patches abaixo voltam a cair no window do sandbox, em silêncio. Verifique com:
  * AgeCheckerAPI no console.
+ *
+ * Engine de interceptação por xtalia/Hermes Agent, portado de
+ * https://github.com/xtalia/age-verification-bypass
  */
 
 (function () {
@@ -91,7 +82,6 @@
         return '';
     }
 
-    // Reconstrói a Response com o corpo reescrito, descartando headers que mentiriam.
     function withBody(resp, body) {
         var headers;
         try { headers = new Headers(resp.headers); } catch (e) { headers = new Headers(); }
@@ -111,9 +101,8 @@
         } catch (e) { return null; }
     }
 
-    // Define um accessor num global para que a atribuição `window.X = {...}` de um
-    // SDK seja observada em vez de nos alcançar primeiro. Retorna o stub que o
-    // getter vai servir.
+    // Define um accessor num global para observar a atribuição do SDK em vez de
+    // ele chegar primeiro. Sem stubFactory, o getter devolve o valor real.
     function trapGlobal(name, onSet, stubFactory) {
         var stored, stub;
         try {

@@ -1,5 +1,9 @@
 # Age Verification Bypass (userscript)
 
+**Versão atual: 2.1.0.** O `@updateURL` aponta para o `main`, então o
+gerenciador atualiza sozinho — mas confira a versão no painel, porque o
+navegador às vezes serve um `.user.js` antigo em cache.
+
 Port para userscript (Violentmonkey, Tampermonkey, Greasemonkey) do add-on do
 Firefox [helloyanis/age-verification-bypass](https://github.com/helloyanis/age-verification-bypass),
 com um engine de interceptação de `fetch`, XHR e SDKs carregados por `<script>`.
@@ -25,7 +29,7 @@ com um engine de interceptação de `fetch`, XHR e SDKs carregados por `<script>
 - **[RedGIFs](https://www.redgifs.com/)** — Libera o bloqueio geográfico reescrevendo `api.redgifs.com/v2/geolocation` · não testado — o bloqueio é geogateado e não vem ativo do Brasil
 - **[SpankBang](https://spankbang.com)** — Ver vídeos mesmo deslogado (remove blur/overlay e neutraliza o modal de verificação) · não testado
 - **[Veriff](https://veriff.com)** — Funciona em poucos sites (não espere que funcione em todos) · não testado — só alcançável dentro de uma integração real do Veriff
-- **[x.com / Twitter](https://x.com)** — **as regras não batem com a API atual** — ver abaixo. Originalmente mirava `TweetResultByRestId`, `TweetDetail`, `UserOriginalsTimeline` e `UserTweetsAndReplies`; exige estar logado (port do upstream 1.2.4, ainda BETA no upstream)
+- **[x.com / Twitter](https://x.com)** — **as regras não batem com a API atual** — ver abaixo. Originalmente mirava `TweetResultByRestId`, `TweetDetail`, `UserOriginalsTimeline` e `UserTweetsAndReplies`; exige estar logado (sincronizado com o upstream 1.3.1, ainda BETA lá)
 - **[Cosxplay](https://cosxplay.com)** — Bloqueia o script de verificação de idade (`age.js`) · **verificado**
 - **[AngeloGodsHack](https://angelogodshackxxx.com)** — Remove o modal de age gate · **verificado**
 - **[rule34.xxx](https://rule34.xxx)** — Bloqueio geográfico — mostra uma dica de Tor Browser (sem bypass direto, igual ao upstream) · **verificado**
@@ -161,4 +165,17 @@ apontando para este repositório.
 
 ## Licença
 
-MIT
+[MIT](LICENSE)
+
+```
+Copyright (c) 2026 helloyanis (add-on original do Firefox)
+Copyright (c) 2026 xtalia / Hermes Agent (engine de interceptação)
+Copyright (c) 2026 LucianoSkx (port para userscript e correções)
+```
+
+A ordem segue a contribuição real. O add-on original é do helloyanis; o engine
+de interceptação — a maior parte do código atual — é do xtalia; o port e as
+correções são meus.
+
+Se você copiar o engine de interceptação para outro projeto, a linha do xtalia
+precisa acompanhar.
