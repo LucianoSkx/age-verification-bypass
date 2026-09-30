@@ -15,7 +15,7 @@ Port of the Firefox add-on [helloyanis/age-verification-bypass](https://github.c
 - **[AgeVerif.com](https://demo.ageverif.com/)** — Basic integration; advanced and OAuth2 flows are not handled · **verified**
 - **[AliExpress](https://aliexpress.com/)** — "For adults" items (removes blur/modal/overlays, including suggested products) · **verified** (de-blur rule; not exercised on a live adult-flagged listing)
 - **[Bluesky](https://bsky.app)** — Sensitive posts without login (automod + self-labelled posts); media revealed by clicking "Show" · untested
-- **[Reddit](https://reddit.com)** — NSFW communities (works best logged out; consider [redlib](https://redlib.catsarch.com/) for a fully private Reddit frontend) · untested
+- **[Reddit](https://reddit.com)** — NSFW communities (works best logged out; consider [redlib](https://redlib.catsarch.com/) for a fully private Reddit frontend) · **partially broken** — see below
 - **[SpankBang](https://spankbang.com)** — View videos even when logged out (removes blur/overlay and neutralizes the age verification modal) · untested
 - **[Veriff](https://veriff.com)** — Works on only a few sites (don't expect it to work everywhere) · untested
 - **[x.com / Twitter](https://x.com)** — Unblurs sensitive posts in single post view (`TweetResultByRestId`, `TweetDetail`) and profile timelines (`UserOriginalsTimeline`, `UserTweetsAndReplies`); requires being logged in (ported from upstream 1.2.4, still BETA upstream) · untested
@@ -27,8 +27,26 @@ Port of the Firefox add-on [helloyanis/age-verification-bypass](https://github.c
 ### Status labels
 
 - **verified** — checked in a real browser against the live service.
+- *partially broken* — a known gap, described below.
 - *untested* — covered by the test suite only. The code path exists and is
   exercised in CI, but nobody has run it against the real site. Expect breakage.
+
+### Reddit: injected styles do not survive
+
+Reddit deletes `<style>` elements that it did not create. A `<style>` injected
+by this script is gone within seconds.
+
+This is not a CSP problem: Reddit's policy is
+`style-src 'self' 'unsafe-inline' www.redditstatic.com ...`, which permits
+injected styles. The removal is active.
+
+That breaks the `.rpl-scroll-lock { overflow: auto !important; }` rule, which is
+how the scroll lock is defeated. Since 1.7.9 used `GM_addStyle`, which the
+manager applies outside the page's DOM, this is a regression.
+
+Re-adding the style in a loop is not a fix. It livelocks the tab: the script
+stops responding to execution entirely, and even a cleanup script times out. Do
+not attempt it.
 
 A passing CI run means the interception engine is internally consistent, not
 that every listed service works. Several of these need a real third-party
