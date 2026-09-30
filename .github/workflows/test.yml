@@ -14,3 +14,38 @@ jobs:
         with:
           node-version: 20
       - run: node test/templates.test.js
+      # O @updateURL aponta para o main, e o gerenciador so instala quando o
+      # @version sobe. Sem isso, mudanca de comportamento chega ao repo mas nunca
+      # chega ao usuario. Ja aconteceu: 7 commits de mudanca sob @version 2.0.0.
+      - name: Versão subiu junto com o userscript?
+        run: |
+          set -euo pipefail
+          F=age-verification-bypass.user.js
+          ver() { grep -m1 -oP '(?<=^// @version +)\S+' "$1"; }
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="origin/${{ github.base_ref }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "::notice::sem commit anterior para comparar, pulando"; exit 0
+          fi
+          git fetch --no-tags --depth=1 origin "$BASE" 2>/dev/null || {
+            echo "::notice::base indisponivel, pulando"; exit 0; }
+          OLD_SHA=$(git rev-parse FETCH_HEAD)
+          git show "$OLD_SHA:$F" > /tmp/old.user.js 2>/dev/null || {
+            echo "::notice::userscript nao existia antes, pulando"; exit 0; }
+
+          if git diff --quiet "$OLD_SHA" -- "$F"; then
+            echo "userscript nao mudou, nada a verificar"; exit 0
+          fi
+
+          OLD=$(ver /tmp/old.user.js)
+          NEW=$(ver "$F")
+          if [ "$OLD" = "$NEW" ]; then
+            echo "::error::o userscript mudou mas @version continua $NEW — quem está em $NEW não recebe a mudança"
+            exit 1
+          fi
+          echo "@version: $OLD -> $NEW"
