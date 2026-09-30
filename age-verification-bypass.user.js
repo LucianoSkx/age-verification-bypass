@@ -373,6 +373,28 @@
     (function () {
         if (!/(^|\.)ageverif\.com$/.test(HOST)) return;
 
+        function avComplete() {
+            var v = {
+                uid: randStr(24), country: 'FR', countrySubdivision: null,
+                assuranceLevel: 'STRICT', ageThreshold: 0, reused: false,
+                expiresIn: 100 * 365 * 24 * 60 * 60, token: randStr(48)
+            };
+            v.expiresAt = Math.floor(Date.now() / 1000) + v.expiresIn;
+            var sdk = W.ageverif;
+            if (!sdk || typeof sdk !== 'object') return;
+            var ready = { verification: v }, ok = { verification: v };
+            try { if (typeof sdk._ready === 'function') sdk._ready(ready); } catch (e) {}
+            try { if (typeof sdk.on === 'function') sdk.on('ready', ready); } catch (e) {}
+            try { if (typeof sdk._successful === 'function') sdk._successful(ok); } catch (e) {}
+        }
+
+        // The SDK arrives via <script src>, which never goes through fetch, so the
+        // rule below can never fire. Trap the global instead: the moment the page
+        // assigns its config object, report the verification.
+        trapGlobal('ageverif', function (sdk) {
+            try { whenReady(function () { avComplete(); }); } catch (e) {}
+        });
+
         rule(function (u) { return u.indexOf('www.ageverif.com/checker.js') !== -1; }, function () {
             // document.currentScript is null when the body is injected, so fall
             // back to scanning for the tag that requested checker.js.

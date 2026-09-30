@@ -286,6 +286,16 @@ if (rootSrc) {
     // NOTE: installFetch wraps window.fetch on every host; the rule table is what
     // decides whether a body is touched. So "not patched" is the wrong assertion —
     // pass-through fidelity is verified asynchronously below.
+    // ageverif's SDK arrives via <script src>, which bypasses fetch entirely.
+    // Without this trap its rule can never fire.
+    runRuntime('ageverif traps its SDK global', 'ageverif.com', (s) => {
+        const before = s.window.ageverif;
+        s.window.ageverif = { _ready: () => {}, _successful: () => {} };
+        assert(s.window.ageverif !== before || s.window.ageverif._ready,
+            'ageverif global is not trapped, the checker.js rule can never fire');
+        assert(s.window.AgeCheckerAPI === undefined, 'agechecker traps must not leak onto this host');
+    });
+
     runRuntime('non-matching hosts register no rewriting rule', 'example.com', (s) => {
         let called = 0;
         s.window.fetch('https://example.com/api/data').then(() => { called++; });
