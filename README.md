@@ -31,10 +31,29 @@ Two main methods:
 ### Rewrite Server Response
 Intercepts requests that would create the age verification popup and replaces them with code that automatically sends the "verification approved" callback to the website. Example: Bluesky.
 
+### Trap SDK Globals
+Some SDKs are loaded by a plain `<script src>` tag, which neither `fetch` nor XHR ever sees. The script defines accessors on the config globals those SDKs assign themselves (`AgeCheckerConfig`, `AgeCheckerAPI`, `AGEGO`, `Veriff`, `veriffSDK`), so the moment the page hands over its callbacks the "accepted" verdict is returned immediately.
+
 ### Hide and Remove DOM Elements
 Removes popups, blurs, and overlays added when a page is marked NSFW. Example: AliExpress, Reddit.
 
 **No data is collected.** There is no tracking of which sites you visit.
+
+## Requirements
+
+The script uses `@grant none` so it runs in the page's own JavaScript context. This is required — in a sandboxed userscript, patching `window.fetch` has no effect on the page, and the whole script silently does nothing.
+
+The trade-off: a plain `<style>` element is subject to the site's `style-src` CSP, so the CSS-based de-blurring can be blocked on sites with a strict policy. `GM_addStyle` was not subject to it.
+
+## Troubleshooting
+
+If nothing happens on a supported site, check that the script actually reached the page:
+
+1. Open the site and the browser console.
+2. Run `typeof AgeCheckerAPI` on an AgeChecker.net page.
+3. `undefined` means the script did not reach the page world. Usually the userscript
+   manager refused MAIN_WORLD injection because of the site's CSP. Try a different
+   manager, or report it with the site and the console output.
 
 ## Updates
 
@@ -44,6 +63,7 @@ The script checks for updates automatically via `@updateURL`/`@downloadURL` poin
 
 - Original: [helloyanis](https://github.com/helloyanis) — [Firefox add-on](https://github.com/helloyanis/age-verification-bypass)
 - Port: [LucianoSkx](https://github.com/LucianoSkx)
+- Interception engine: [xtalia](https://github.com/xtalia/age-verification-bypass) / Hermes Agent
 
 ## License
 
