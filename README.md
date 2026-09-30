@@ -47,16 +47,22 @@ XHR  https://x.com/i/api/fleets/v1/avatar_content
 
 No API traffic goes through `fetch` at all. The home timeline is served by
 `/i/api/1.1/flow/timeline.json`, which no rule covers, so nothing is unblurred
-there.
+there. This part is settled.
 
-Whether `TweetDetail` is still used for a single post could not be established:
-the logger has to be installed before the app's first request, which means a real
-`@run-at document-start` install, and a userscript cannot be reinstalled
-programmatically. It is left unproven rather than declared dead.
+What is **not** settled: the four targeted endpoints (`TweetResultByRestId`,
+`TweetDetail`, `UserOriginalsTimeline`, `UserTweetsAndReplies`) did not appear
+either — but only home-timeline traffic was observed. A profile page and a
+single-post view were never visited with instrumentation active, so those four
+rules are unsupported by evidence, not proven dead. They are left in place on
+purpose; deleting them would discard possibly-working code on the strength of an
+absence I cannot explain.
 
-Rewriting this integration means targeting `flow/timeline.json` and re-checking
-the profile endpoints against the current app. That is a real piece of work, not
-a string change.
+Fixing the timeline path means writing a rewrite for `flow/timeline.json`, which
+needs the real response shape. That shape could not be captured: the response
+returns `status 200` with a zero-length body at `readyState 4`, read through the
+native `responseText` descriptor, because the app consumes the body before page
+script can observe it. Guessing at the field names would repeat the exact class
+of mistake this file exists to correct.
 
 ### Reddit: injected styles do not survive
 
