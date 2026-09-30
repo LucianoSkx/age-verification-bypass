@@ -1,6 +1,6 @@
 # Age Verification Bypass (userscript)
 
-**Versão atual: 2.1.0.** O `@updateURL` aponta para o `main`, então o
+**Versão atual: 2.1.1.** O `@updateURL` aponta para o `main`, então o
 gerenciador atualiza sozinho — mas confira a versão no painel, porque o
 navegador às vezes serve um `.user.js` antigo em cache.
 
