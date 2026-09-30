@@ -2,9 +2,8 @@
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
 // @version      2.0.0
-// @description  Bypass age verification on AgeChecker.net, AgeGO, AgeVerif.com, Veriff, AliExpress, Bluesky, Reddit, SpankBang, Cosxplay, angelogodshackxxx.com, x.com/Twitter, plus Tor hints for rule34/xHamster. Intercepts fetch, XHR and <script>-loaded SDKs. No data collected. Port of helloyanis' Firefox add-on; interception engine by xtalia/Hermes Agent.
-// @description:pt-BR  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, Veriff, AliExpress, Bluesky, Reddit, SpankBang, Cosxplay, angelogodshackxxx.com, x.com/Twitter, mais dicas Tor para rule34/xHamster. Intercepta fetch, XHR e SDKs carregados por <script>. Nenhum dado é coletado. Port do add-on Firefox do helloyanis; interception engine por xtalia/Hermes Agent.
-// @author       helloyanis (original), LucianoSkx (port), xtalia/Hermes Agent (interception engine)
+// @description  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, Veriff, AliExpress, Bluesky, Reddit, SpankBang, Cosxplay, angelogodshackxxx.com, x.com/Twitter, mais dicas Tor para rule34/xHamster. Intercepta fetch, XHR e SDKs carregados por <script>. Nenhum dado é coletado. Port do add-on Firefox do helloyanis; engine de interceptação por xtalia/Hermes Agent.
+// @author       helloyanis (original), xtalia/Hermes Agent (engine de interceptação), LucianoSkx (port e correções)
 // @match        *://*/*
 // @run-at       document-start
 // @grant        none
@@ -18,31 +17,33 @@
 
 
 /*
- * WHY THIS VERSION:
- * The 1.x port patched only `window.fetch`, inside the userscript sandbox, so the
- * page never saw the patch. This rewrite fixes that and three other gaps:
- *   1. runs in the page world (@grant none, unsafeWindow when a grant is available)
- *   2. intercepts fetch AND XMLHttpRequest through one rule table
- *   3. pre-empts <script>-loaded SDKs by trapping their global config objects
- *   4. scrubs content-length/content-encoding when rewriting bodies
+ * POR QUE ESTA VERSÃO:
+ * O port 1.x patcheava apenas `window.fetch`, de dentro do sandbox do
+ * userscript, então a página nunca via a patch. Esta reescrita corrige isso e
+ * outras três lacunas:
+ *   1. roda no mundo da página (@grant none, unsafeWindow quando há grant)
+ *   2. intercepta fetch E XMLHttpRequest por uma única tabela de regras
+ *   3. antecipa SDKs carregados por <script> travando os globals de config
+ *   4. limpa content-length/content-encoding ao reescrever corpos
  *
- * Interception engine by xtalia/Hermes Agent, ported from
+ * Engine de interceptação por xtalia/Hermes Agent, portado de
  * https://github.com/xtalia/age-verification-bypass
  *
- * KNOWN LIMITATION: if the manager refuses MAIN_WORLD injection because of the
- * page's CSP, @grant none also revokes unsafeWindow and every patch below lands
- * on the sandbox window again, silently. Verify with: AgeCheckerAPI in the console.
+ * LIMITAÇÃO CONHECIDA: se o gerenciador recusar a injeção em MAIN_WORLD por
+ * causa do CSP da página, @grant none também revoga o unsafeWindow e todas as
+ * patches abaixo voltam a cair no window do sandbox, em silêncio. Verifique com:
+ * AgeCheckerAPI no console.
  */
 
 (function () {
     'use strict';
 
-    // Page world, whether we're injected raw (TM/VM with @grant none) or sandboxed (GM4).
+    // Mundo da página, injetado de forma crua (TM/VM com @grant none) ou em sandbox (GM4).
     var W = (typeof unsafeWindow !== 'undefined' && unsafeWindow) ? unsafeWindow : window;
     var D = W.document;
     var HOST = W.location.hostname || '';
 
-    // ---------------------------------------------------------------- utils ---
+    // ---------------------------------------------------------- utilitários ---
 
     function log() {
         try { console.log.apply(console, ['%c[age-bypass]', 'color:#4fc3f7'].concat([].slice.call(arguments))); } catch (e) {}
@@ -70,8 +71,8 @@
         return out;
     }
 
-    // A plain <style> is subject to the page's style-src CSP. GM_addStyle was not,
-    // which is the one capability @grant none gives up.
+    // Um <style> comum está sujeito ao style-src do CSP da página. GM_addStyle
+    // não estava, e é a única capacidade que @grant none abre mão.
     function addStyle(css) {
         try {
             var s = D.createElement('style');
@@ -90,14 +91,14 @@
         return '';
     }
 
-    // Rebuild a Response with a rewritten body, dropping headers that would lie.
+    // Reconstrói a Response com o corpo reescrito, descartando headers que mentiriam.
     function withBody(resp, body) {
         var headers;
         try { headers = new Headers(resp.headers); } catch (e) { headers = new Headers(); }
         try { headers.delete('content-length'); } catch (e) {}
         try { headers.delete('content-encoding'); } catch (e) {}
         var init = { status: resp.status, statusText: resp.statusText, headers: headers };
-        // 204/205/304 may not carry a body.
+        // 204/205/304 não podem ter corpo.
         if (resp.status === 204 || resp.status === 205 || resp.status === 304) return resp;
         try { return new Response(body, init); } catch (e) { return resp; }
     }
@@ -110,8 +111,9 @@
         } catch (e) { return null; }
     }
 
-    // Define an accessor on a global so an SDK's `window.X = {...}` assignment is
-    // observed instead of racing us. Returns the stub the getter will serve.
+    // Define um accessor num global para que a atribuição `window.X = {...}` de um
+    // SDK seja observada em vez de nos alcançar primeiro. Retorna o stub que o
+    // getter vai servir.
     function trapGlobal(name, onSet, stubFactory) {
         var stored, stub;
         try {
@@ -133,9 +135,9 @@
         } catch (e) { return false; }
     }
 
-    // ---------------------------------------------------------- rule table ---
+    // ------------------------------------------------------- tabela de regras ---
 
-    // Each rule: { match(url) -> bool, run(raw, ctx) -> string|null }
+    // Cada regra: { match(url) -> bool, run(raw, ctx) -> string|null }
     // ctx = { url, contentType, via }
     var RULES = [];
 
@@ -150,12 +152,12 @@
         return null;
     }
 
-    // ------------------------------------------------------- interception ---
+    // --------------------------------------------------------- interceptação ---
 
     function installFetch() {
         var origFetch = W.fetch;
         if (typeof origFetch !== 'function') return;
-        // Already ours: re-arming must not stack wrappers.
+        // Já é o nosso: re-armar não pode empilhar wrappers.
         if (origFetch.__agebypass) return;
         var wrapped = function (input, init) {
             var url = urlOf(input);
@@ -170,16 +172,16 @@
                     return resp.clone().text().then(function (raw) {
                         var out = r.run(raw, { url: url, contentType: ct, via: 'fetch' });
                         return (out == null) ? resp : withBody(resp, out);
-                    // The outer try/catch only sees synchronous throws. An unreadable
-                    // body (opaque-redirect, already-consumed clone) rejects here and
-                    // would surface as a failed fetch instead of the original response.
+                    // O try/catch externo só vê throws síncronos. Um corpo ilegível
+                    // (opaque-redirect, clone já consumido) rejeita aqui e apareceria
+                    // como fetch falho em vez da response original.
                     }).catch(function () { return resp; });
-                } catch (e) { log('fetch transform failed', url, e); return resp; }
+                } catch (e) { log('falha na transformação do fetch', url, e); return resp; }
             });
         };
         try { wrapped.__agebypass = true; } catch (e) {}
         W.fetch = wrapped;
-        log('fetch interception installed');
+        log('interceptação de fetch instalada');
     }
 
     function installXHR() {
@@ -197,31 +199,32 @@
         };
 
         proto.send = function () {
-            // If a library wrapped prototype.open after us, __agebypass_url was
-            // never set and this hook would silently do nothing. send() cannot know
-            // the URL yet, so defer: patchInstance reads responseURL, which is
-            // populated by the time readyState hits 4.
+            // Se uma biblioteca embrulhou prototype.open depois de nós,
+            // __agebypass_url nunca é setado e este hook não faz nada, em silêncio.
+            // send() ainda não conhece a URL, então adia: patchInstance lê
+            // responseURL, que já está populado quando readyState chega a 4.
             try { if (nativeText && nativeResp) patchInstance(this, nativeText, nativeResp); }
-            catch (e) { log('xhr instance patch failed', e); }
+            catch (e) { log('falha ao patchar a instância de XHR', e); }
             return send.apply(this, arguments);
         };
-        log('XHR interception installed');
+        log('interceptação de XHR instalada');
     }
 
-    // Re-arm once after document-start so a page that wraps prototype.open during
-    // its own bootstrap cannot clobber the hook. Any library doing that
-    // (analytics, polyfills) otherwise disables XHR interception with no error.
+    // Re-arma uma vez depois do document-start para que uma página que embrulha
+    // prototype.open no próprio bootstrap não sobrescreva o hook. Qualquer
+    // biblioteca que faça isso (analytics, polyfills) desativa a interceptação
+    // de XHR sem nenhum erro.
     setTimeout(function () {
-        try { installXHR(); } catch (e) { log('xhr re-arm failed', e); }
+        try { installXHR(); } catch (e) { log('falha no re-arm do XHR', e); }
     }, 0);
 
-    // Override the instance accessors so the page reads our transformed body,
-    // not the raw one, no matter when it registered its own listener.
+    // Sobrescreve os accessors da instância para que a página leia o corpo
+    // transformado, não o cru, importando quando registrou o próprio listener.
     function patchInstance(xhr, nativeText, nativeResp) {
         var doneText = false, doneResp = false, cacheText, cacheResp;
 
-        // Resolved at read time, not at send time: by readyState 4 the URL is
-        // known even if our prototype.open hook was clobbered.
+        // Resolvido na leitura, não no send: com readyState 4 a URL já é conhecida
+        // mesmo que nosso hook de prototype.open tenha sido sobrescrito.
         function ruleForThis() {
             var url = xhr.__agebypass_url;
             if (!url) { try { url = xhr.responseURL; } catch (e) {} }
@@ -263,8 +266,8 @@
                         doneResp = true;
                         var native = nativeResp.get.call(xhr);
                         if (isJson) {
-                            // The browser already parsed it, but every rule is
-                            // text-based. Re-serialize, rewrite, parse back.
+                            // O browser já fez o parse, mas toda regra é baseada em
+                            // texto. Re-serializa, reescreve, faz o parse de volta.
                             try { cacheResp = JSON.parse(transform(JSON.stringify(native))); }
                             catch (e) { cacheResp = native; }
                         } else {
@@ -274,12 +277,12 @@
                     return cacheResp;
                 }
             });
-        } catch (e) { log('xhr instance patch failed', e); }
+        } catch (e) { log('falha ao patchar a instância de XHR', e); }
     }
 
-    // ============================================================ services ===
+    // =========================================================== serviços ===
 
-    // ---------------------------------------------------- agechecker.net ----
+    // --------------------------------------------------- agechecker.net ----
     (function () {
         if (!/(^|\.)agechecker\.net$/.test(HOST)) return;
 
@@ -295,8 +298,9 @@
             try { if (typeof cfg.onclosed === 'function') cfg.onclosed(); } catch (e) {}
         }
 
-        // Works even when the SDK arrives via <script src> (fetch/XHR never see it):
-        // the moment the page assigns its config, we immediately report "accepted".
+        // Funciona mesmo quando o SDK chega por <script src> (fetch/XHR nunca o
+        // veem): no instante em que a página atribui sua config, reportamos
+        // "accepted" imediatamente.
         trapGlobal('AgeCheckerConfig', function (cfg) { acComplete(cfg); });
         trapGlobal('AgeCheckerAPI', null, function () {
             return {
@@ -326,10 +330,10 @@
             return JSON.stringify({ uuid: uuid(), status: 'accepted' });
         });
 
-        log('agechecker.net armed');
+        log('agechecker.net armado');
     })();
 
-    // ---------------------------------------------------------- agego.com ---
+    // --------------------------------------------------------- agego.com ---
     (function () {
         if (!/^(verifycdn|myapi)\.agego\.com$/.test(HOST)) return;
 
@@ -371,7 +375,7 @@
                 '      }\n' +
                 '    }\n' +
                 '  }\n' +
-                '  if (!events) { console.warn("[agego] no events found"); return; }\n' +
+                '  if (!events) { console.warn("[agego] nenhum evento encontrado"); return; }\n' +
                 '  if (typeof events.onVerifiedBefore === "function") events.onVerifiedBefore();\n' +
                 '  else if (typeof events.onAgeVerify === "function") events.onAgeVerify();\n' +
                 '  else if (typeof events.onVerificationFlowEnd === "function") events.onVerificationFlowEnd({});\n' +
@@ -386,7 +390,7 @@
             return null;
         });
 
-        log('agego.com armed');
+        log('agego.com armado');
     })();
 
     // ------------------------------------------------------ ageverif.com ----
@@ -400,11 +404,11 @@
             try { if (D.body) D.body.style.removeProperty('filter'); } catch (e) {}
         }
 
-        // Shadows the SDK entirely. The real one is only ever assigned to the
-        // accessor, never returned by the getter, so the site always sees this.
-        // Shape taken from the live SDK on demo.ageverif.com: _ready and
-        // _successful are booleans, verified/requiresVerification are the state
-        // the site branches on, blur/unblur own the page filter.
+        // Sombreia o SDK por completo. O real só é atribuído ao accessor, nunca
+        // devolvido pelo getter, então o site sempre enxerga isto. Forma tirada do
+        // SDK real em demo.ageverif.com: _ready e _successful são booleanos,
+        // verified/requiresVerification são o estado em que o site decide, e
+        // blur/unblur controlam o filtro da página.
         function avStub() {
             var handlers = {};
             var v = {
@@ -442,19 +446,19 @@
             };
         }
 
-        // The SDK arrives via <script src>, which never goes through fetch, so the
-        // rule below can never fire. Shadow the global instead.
+        // O SDK chega por <script src>, que nunca passa por fetch, então a regra
+        // abaixo nunca pode disparar. Sombreia o global em vez disso.
         //
-        // onSet is dead code here: the real SDK never assigns through the accessor
-        // (it uses defineProperty or a captured local), so it does not fire. The
-        // stub is returned by the getter regardless, which is the point.
+        // onSet é código morto aqui: o SDK real nunca atribui pelo accessor (usa
+        // defineProperty ou uma referência local), então não dispara. O stub é
+        // devolvido pelo getter de qualquer forma, que é o ponto.
         trapGlobal('ageverif', null, avStub);
 
-        // The real SDK still runs against its own object and locks scroll on the
-        // DOM directly, so nothing the site sees can undo it. Watch the style
-        // attribute instead of guessing when it lands: lifecycle hooks fire before
-        // the SDK gets there. Scoped to ageverif hosts, where the lock is always
-        // the gate and never a legitimate modal.
+        // O SDK real continua rodando contra o próprio objeto e trava o scroll
+        // direto no DOM, então nada que o site enxerga desfaz. Vigia o atributo
+        // style em vez de adivinhar quando ele chega: hooks de ciclo de vida
+        // disparam antes do SDK. Restrito a hosts ageverif, onde o lock é sempre
+        // o gate e nunca um modal legítimo.
         try {
             new MutationObserver(avUnlock)
                 .observe(D.body || D.documentElement, { attributes: true, attributeFilter: ['style'] });
@@ -463,8 +467,8 @@
         W.addEventListener('load', avUnlock);
 
         rule(function (u) { return u.indexOf('www.ageverif.com/checker.js') !== -1; }, function () {
-            // document.currentScript is null when the body is injected, so fall
-            // back to scanning for the tag that requested checker.js.
+            // document.currentScript é null quando o corpo é injetado, então
+            // procuramos a tag que pediu checker.js.
             return '(function () {\n' +
                 '  function parseQuery(url) {\n' +
                 '    var params = {}, q = (url || "").split("?")[1] || "";\n' +
@@ -525,7 +529,7 @@
                 '})();';
         });
 
-        log('ageverif.com armed');
+        log('ageverif.com armado');
     })();
 
     // -------------------------------------------------------- veriff.me -----
@@ -539,7 +543,7 @@
             };
         }
 
-        // Trap the constructors too: covers <script src> SDK loading.
+        // Trava os construtores também: cobre SDK carregado por <script src>.
         trapGlobal('Veriff', null, function () {
             return function (config) {
                 config = config || {};
@@ -595,7 +599,7 @@
                 '};';
         });
 
-        log('veriff armed');
+        log('veriff armado');
     })();
 
     // ------------------------------------------------------ aliexpress ------
@@ -636,7 +640,7 @@
                 || u.indexOf('assets.aliexpress-media.com/g/AWSC/fireyejs/') !== -1;
         }, function () { setTimeout(cleanElements, 0); return null; });
 
-        log('aliexpress armed');
+        log('aliexpress armado');
     })();
 
     // ----------------------------------------------------------- bsky -------
@@ -693,7 +697,7 @@
         clean();
         new MutationObserver(clean).observe(D.documentElement, { childList: true, subtree: true });
 
-        log('bsky armed');
+        log('bsky armado');
     })();
 
     // ---------------------------------------------------------- reddit ------
@@ -725,10 +729,10 @@
         new MutationObserver(clean).observe(D.documentElement, { childList: true, subtree: true });
         new MutationObserver(clean).observe(D.head || D.documentElement, { childList: true, subtree: true });
 
-        log('reddit armed');
+        log('reddit armado');
     })();
 
-    // ------------------------------------------------------- spankbang ------
+    // ------------------------------------------------------ spankbang ------
     (function () {
         if (!/(^|\.)spankbang\.com$/.test(HOST)) return;
 
@@ -759,7 +763,7 @@
         D.addEventListener('DOMContentLoaded', clean);
         W.addEventListener('load', clean);
 
-        log('spankbang armed');
+        log('spankbang armado');
     })();
 
     // ------------------------------------------------------------ x.com -----
@@ -810,7 +814,7 @@
             });
         });
 
-        log('x.com armed');
+        log('x.com armado');
     })();
 
     // --------------------------------------------------------- cosxplay -----
@@ -833,10 +837,10 @@
         D.addEventListener('DOMContentLoaded', clean);
         W.addEventListener('load', clean);
 
-        log('cosxplay armed');
+        log('cosxplay armado');
     })();
 
-    // ------------------------------------------------- angelogodshackxxx ----
+    // ------------------------------------------------ angelogodshackxxx ----
     (function () {
         if (!/(^|\.)angelogodshackxxx\.com$/.test(HOST)) return;
 
@@ -849,10 +853,10 @@
         D.addEventListener('DOMContentLoaded', clean);
         W.addEventListener('load', clean);
 
-        log('angelogodshackxxx armed');
+        log('angelogodshackxxx armado');
     })();
 
-    // ------------------------------------------------------- Tor hints ------
+    // -------------------------------------------------------- dicas Tor ------
     function torHint(id, html) {
         if (D.getElementById(id)) return;
         var b = D.createElement('div');
@@ -870,29 +874,30 @@
 
     (function () {
         if (!/(^|\.)rule34\.xxx$/.test(HOST)) return;
-        var H = 'This site uses geo-based age verification. Use the <a href="https://www.torproject.org/download/" target="_blank" style="color:#4fc3f7">Tor Browser</a> to get around it.';
+        var H = 'Este site usa verificação de idade por bloqueio geográfico. Use o <a href="https://www.torproject.org/download/" target="_blank" style="color:#4fc3f7">Tor Browser</a> para contornar.';
         rule(function (u) { return u.indexOf('rule34.xxx/public/ageverify.php') !== -1; }, function () { whenReady(function () { torHint('avb-tor-hint', H); }); return null; });
         if (W.location.pathname.indexOf('ageverify.php') !== -1) whenReady(function () { torHint('avb-tor-hint', H); });
     })();
 
     (function () {
         if (!/(^|\.)xhamster\.com$/.test(HOST)) return;
-        var H = 'Geo-based age verification. Use the <a href="https://www.torproject.org/download/" target="_blank" style="color:#4fc3f7">Tor Browser</a> to get around it.';
+        var H = 'Verificação de idade por bloqueio geográfico. Use o <a href="https://www.torproject.org/download/" target="_blank" style="color:#4fc3f7">Tor Browser</a> para contornar.';
         rule(function (u) { return u.indexOf('collector.xhamster.com/?log=user-age-verification') !== -1; }, function () { whenReady(function () { torHint('avb-tor-hint-xh', H); }); return null; });
     })();
 
-    // ----------------------------------------------------- start engines ----
+    // -------------------------------------------------- inicia engines ----
     installFetch();
     installXHR();
 
-    // A page that reassigns window.fetch or XMLHttpRequest.prototype.open during
-    // its own bootstrap silently disarms interception. Measured on reddit.com:
-    // window.fetch was back to `function () { [native code] }` and the XHR
-    // interceptor was gone. Re-arm a few times; both installers are idempotent.
+    // Uma página que reatribui window.fetch ou XMLHttpRequest.prototype.open no
+    // próprio bootstrap desarma a interceptação em silêncio. Medido no
+    // reddit.com: window.fetch voltou a ser `function () { [native code] }` e o
+    // interceptor de XHR tinha sumido. Re-arma algumas vezes; ambos os
+    // instaladores são idempotentes.
     //
-    // Bounded on purpose. Re-adding *styles* in a loop is NOT safe: reddit also
-    // deletes injected <style> elements, and fighting that livelocks the tab
-    // (verified — the page stopped responding to script execution entirely).
+    // Limitado de propósito. Re-adicionar *styles* em loop NÃO é seguro: o
+    // reddit também apaga <style> injetado, e lutar contra isso trava a aba
+    // (verificado — a página parou de responder a execução de script por completo).
     [0, 250, 1000, 3000].forEach(function (ms) {
         setTimeout(function () {
             installFetch();

@@ -1,131 +1,150 @@
-# Age Verification Bypass (Userscript)
+# Age Verification Bypass (userscript)
 
-Port of the Firefox add-on [helloyanis/age-verification-bypass](https://github.com/helloyanis/age-verification-bypass) to a userscript (Violentmonkey, Tampermonkey, Greasemonkey).
+Port para userscript (Violentmonkey, Tampermonkey, Greasemonkey) do add-on do
+Firefox [helloyanis/age-verification-bypass](https://github.com/helloyanis/age-verification-bypass),
+com um engine de interceptação de `fetch`, XHR e SDKs carregados por `<script>`.
 
-## Installation
+## Instalação
 
-1. Install [Violentmonkey](https://violentmonkey.github.io/) (recommended), [Tampermonkey](https://www.tampermonkey.net/), or [Greasemonkey](https://www.greasespot.net/)
-2. Click [install](https://raw.githubusercontent.com/LucianoSkx/age-verification-bypass/main/age-verification-bypass.user.js)
-3. Confirm installation
+1. Instale o [Violentmonkey](https://violentmonkey.github.io/) (recomendado), o [Tampermonkey](https://www.tampermonkey.net/) ou o [Greasemonkey](https://www.greasespot.net/)
+2. Clique em [instalar](https://raw.githubusercontent.com/LucianoSkx/age-verification-bypass/main/age-verification-bypass.user.js)
+3. Confirme a instalação
 
-## Supported Services
+> O navegador às vezes serve uma versão antiga do `.user.js` em cache. Faça um
+> hard-reload antes de instalar e confira no painel do gerenciador se o código
+> contém `__agebypass`. Se não contém, é cache.
 
-- **[AgeChecker.net](https://agechecker.net/demo)** — Full bypass (unless the site does a server-side double-check) · **verified**
-- **[AgeGO](https://agego.com)** — Basic + advanced integration; server-to-server mode (may fail if site does additional checks) · untested — only reachable inside a real AgeGO integration
-- **[AgeVerif.com](https://demo.ageverif.com/)** — Basic integration; advanced and OAuth2 flows are not handled · **verified**
-- **[AliExpress](https://aliexpress.com/)** — "For adults" items (removes blur/modal/overlays, including suggested products) · **verified** (de-blur rule; not exercised on a live adult-flagged listing)
-- **[Bluesky](https://bsky.app)** — Sensitive posts without login (automod + self-labelled posts); media revealed by clicking "Show" · untested
-- **[Reddit](https://reddit.com)** — NSFW communities (works best logged out; consider [redlib](https://redlib.catsarch.com/) for a fully private Reddit frontend) · **partially broken** — see below
-- **[SpankBang](https://spankbang.com)** — View videos even when logged out (removes blur/overlay and neutralizes the age verification modal) · untested
-- **[Veriff](https://veriff.com)** — Works on only a few sites (don't expect it to work everywhere) · untested — only reachable inside a real Veriff integration
-- **[x.com / Twitter](https://x.com)** — **does not match the current API** — see below. Originally targeted `TweetResultByRestId`, `TweetDetail`, `UserOriginalsTimeline` and `UserTweetsAndReplies`; requires being logged in (ported from upstream 1.2.4, still BETA upstream)
-- **[Cosxplay](https://cosxplay.com)** — Blocks the age verification script (`age.js`) · untested
-- **[AngeloGodsHack](https://angelogodshackxxx.com)** — Removes the age gate modal · untested
-- **[rule34.xxx](https://rule34.xxx)** — Geographical IP block — shows a Tor Browser hint (no direct bypass, same as upstream) · **verified**
-- **[xHamster](https://xhamster.com)** — Geographical IP block — shows a Tor Browser hint (no direct bypass, same as upstream) · untested — the trigger is geo-gated and does not fire from every region
+## Serviços suportados
 
-### Status labels
+- **[AgeChecker.net](https://agechecker.net/demo)** — Bypass completo, a menos que o site faça uma double-check no servidor · **verificado**
+- **[AgeGO](https://agego.com)** — Integração básica e avançada; modo servidor-a-servidor (pode falhar se o site fizer verificações adicionais) · não testado — só alcançável dentro de uma integração real do AgeGO
+- **[AgeVerif.com](https://demo.ageverif.com/)** — Integração básica; os fluxos avançado e OAuth2 não são tratados · **verificado**
+- **[AliExpress](https://aliexpress.com/)** — Itens "For adults" (remove blur, modal e overlays, incluindo produtos sugeridos) · **verificado** (regra de de-blur; não exercitada num listing adulto real)
+- **[Bluesky](https://bsky.app)** — Posts sensíveis sem login (automod + posts autolabelados); mídia revelada ao clicar em "Show" · não testado
+- **[Reddit](https://reddit.com)** — Comunidades NSFW (funciona melhor deslogado; considere o [redlib](https://redlib.catsarch.com/) para um frontend Reddit totalmente privado) · **parcialmente quebrado** — ver abaixo
+- **[SpankBang](https://spankbang.com)** — Ver vídeos mesmo deslogado (remove blur/overlay e neutraliza o modal de verificação) · não testado
+- **[Veriff](https://veriff.com)** — Funciona em poucos sites (não espere que funcione em todos) · não testado — só alcançável dentro de uma integração real do Veriff
+- **[x.com / Twitter](https://x.com)** — **as regras não batem com a API atual** — ver abaixo. Originalmente mirava `TweetResultByRestId`, `TweetDetail`, `UserOriginalsTimeline` e `UserTweetsAndReplies`; exige estar logado (port do upstream 1.2.4, ainda BETA no upstream)
+- **[Cosxplay](https://cosxplay.com)** — Bloqueia o script de verificação de idade (`age.js`) · **verificado**
+- **[AngeloGodsHack](https://angelogodshackxxx.com)** — Remove o modal de age gate · **verificado**
+- **[rule34.xxx](https://rule34.xxx)** — Bloqueio geográfico — mostra uma dica de Tor Browser (sem bypass direto, igual ao upstream) · **verificado**
+- **[xHamster](https://xhamster.com)** — Bloqueio geográfico — mostra uma dica de Tor Browser (sem bypass direto, igual ao upstream) · não testado — o gatilho é geogateado e não dispara de toda região
 
-- **verified** — checked in a real browser against the live service.
-- *partially broken* — a known gap, described below.
-- *untested* — covered by the test suite only. The code path exists and is
-  exercised in CI, but nobody has run it against the real site. Expect breakage.
+### Rótulos de status
 
-### x.com: the rules target an API the app no longer uses
+- **verificado** — checado em um navegador real contra o serviço no ar.
+- **parcialmente quebrado** — uma lacuna conhecida, descrita abaixo.
+- *não testado* — coberto apenas pela suíte de testes. O caminho de código existe
+  e é exercitado no CI, mas ninguém rodou contra o site real. Espere quebrar.
 
-The rules match on URL substring only, so the transport (fetch or XHR) does not
-matter — the endpoint name does. Observed on a logged-in x.com session, with the
-script installed and its hooks confirmed live (`fetchOurs`, `xhrOurs`):
+Um CI verde significa que o engine de interceptação é internamente consistente,
+não que todo serviço listado funciona. Vários destes só são alcançáveis dentro
+de uma integração real de terceiro.
+
+### Reddit: styles injetados não sobrevivem
+
+O Reddit apaga elementos `<style>` que ele não criou. Um `<style>` injetado por
+este script some em segundos.
+
+Não é um problema de CSP: a política do Reddit é
+`style-src 'self' 'unsafe-inline' www.redditstatic.com ...`, que permite styles
+injetados. A remoção é ativa.
+
+Isso quebra a regra `.rpl-scroll-lock { overflow: auto !important; }`, que é como
+o scroll travado é vencido. Como a 1.7.9 usava `GM_addStyle`, que o gerenciador
+aplica fora do DOM da página, isso é uma regressão.
+
+Re-adicionar o style em loop não é solução: trava a aba. O script para de
+responder a execução por completo, e até um script de limpeza estoura timeout.
+Não tente.
+
+### x.com: as regras miram uma API que o app não usa mais
+
+As regras casam por substring de URL, então o transporte (fetch ou XHR) não
+importa — o nome do endpoint importa. Observado numa sessão logada no x.com, com
+o script instalado e seus hooks confirmados vivos (`fetchOurs`, `xhrOurs`):
 
 ```
-XHR  https://x.com/i/api/1.1/flow/timeline.json          <- the home timeline
+XHR  https://x.com/i/api/1.1/flow/timeline.json          <- a timeline do home
 XHR  https://x.com/i/api/1.1/friends/following/list.json
 XHR  https://x.com/i/api/graphql/viewer_context.json
 XHR  https://x.com/i/api/graphql/q4Npr1.../ViewerBadgeCounts
 XHR  https://x.com/i/api/fleets/v1/avatar_content
 ```
 
-No API traffic goes through `fetch` at all. The home timeline is served by
-`/i/api/1.1/flow/timeline.json`, which no rule covers, so nothing is unblurred
-there. This part is settled.
+Nenhum tráfego de API passa por `fetch`. A timeline do home é servida por
+`/i/api/1.1/flow/timeline.json`, que nenhuma regra cobre, então nada é
+desblurado ali. Essa parte está fechada.
 
-What is **not** settled: the four targeted endpoints (`TweetResultByRestId`,
-`TweetDetail`, `UserOriginalsTimeline`, `UserTweetsAndReplies`) did not appear
-either — but only home-timeline traffic was observed. A profile page and a
-single-post view were never visited with instrumentation active, so those four
-rules are unsupported by evidence, not proven dead. They are left in place on
-purpose; deleting them would discard possibly-working code on the strength of an
-absence I cannot explain.
+O que **não** está fechado: os quatro endpoints mirados (`TweetResultByRestId`,
+`TweetDetail`, `UserOriginalsTimeline`, `UserTweetsAndReplies`) também não
+apareceram — mas só foi observado tráfego da home. Uma página de perfil e uma
+visualização de post único nunca foram visitadas com instrumentação ativa, então
+essas quatro regras não têm evidência a favor nem prova de que estão mortas. Elas
+ficam no lugar de propósito; apagá-las descartaria código possivelmente
+funcional com base numa ausência que não consigo explicar.
 
-Fixing the timeline path means writing a rewrite for `flow/timeline.json`, which
-needs the real response shape. That shape could not be captured: the response
-returns `status 200` with a zero-length body at `readyState 4`, read through the
-native `responseText` descriptor, because the app consumes the body before page
-script can observe it. Guessing at the field names would repeat the exact class
-of mistake this file exists to correct.
+Consertar o caminho da timeline exige escrever uma reescrita para
+`flow/timeline.json`, o que precisa da forma real da resposta. Essa forma não pôde
+ser capturada: a resposta retorna `status 200` com corpo de tamanho zero em
+`readyState 4`, lido pelo descriptor nativo de `responseText`, porque o app consome
+o body antes do script da página observar. Chutar nomes de campo repetiria
+exatamente a classe de erro que este arquivo existe para documentar.
 
-### Reddit: injected styles do not survive
+## Como funciona
 
-Reddit deletes `<style>` elements that it did not create. A `<style>` injected
-by this script is gone within seconds.
+Três métodos principais:
 
-This is not a CSP problem: Reddit's policy is
-`style-src 'self' 'unsafe-inline' www.redditstatic.com ...`, which permits
-injected styles. The removal is active.
+### Reescreve a resposta do servidor
+Intercepta requisições que criariam o popup de verificação de idade e substitui por
+código que envia automaticamente o callback de "verificação aprovada" para o site.
+Exemplo: Bluesky.
 
-That breaks the `.rpl-scroll-lock { overflow: auto !important; }` rule, which is
-how the scroll lock is defeated. Since 1.7.9 used `GM_addStyle`, which the
-manager applies outside the page's DOM, this is a regression.
+### Trava os globals do SDK
+Alguns SDKs são carregados por uma tag `<script src>` puro, que nem `fetch` nem
+XHR enxergam. O script define accessors nos globals de config que esses SDKs
+atribuem a si mesmos (`AgeCheckerConfig`, `AgeCheckerAPI`, `AGEGO`, `Veriff`,
+`veriffSDK`, `ageverif`), então no instante em que a página entrega seus callbacks
+o veredito "aceito" é devolvido na hora.
 
-Re-adding the style in a loop is not a fix. It livelocks the tab: the script
-stops responding to execution entirely, and even a cleanup script times out. Do
-not attempt it.
+### Esconde e remove elementos do DOM
+Remove popups, blurs e overlays adicionados quando uma página é marcada como
+NSFW. Exemplo: AliExpress, Reddit.
 
-A passing CI run means the interception engine is internally consistent, not
-that every listed service works. Several of these need a real third-party
-integration to reach at all.
+**Nenhum dado é coletado.** Não há rastreamento de quais sites você visita.
 
-## How It Works
+## Requisitos
 
-Two main methods:
+O script usa `@grant none` para rodar no próprio contexto JavaScript da página.
+Isso é obrigatório — num userscript com sandbox, patchear `window.fetch` não tem
+efeito sobre a página, e o script inteiro não faz nada em silêncio.
 
-### Rewrite Server Response
-Intercepts requests that would create the age verification popup and replaces them with code that automatically sends the "verification approved" callback to the website. Example: Bluesky.
+O custo: um elemento `<style>` comum está sujeito ao `style-src` do CSP do site, e
+sujeito a remoção por páginas que apagam styles injetados (ver Reddit). O
+`GM_addStyle` não sofria nenhum dos dois.
 
-### Trap SDK Globals
-Some SDKs are loaded by a plain `<script src>` tag, which neither `fetch` nor XHR ever sees. The script defines accessors on the config globals those SDKs assign themselves (`AgeCheckerConfig`, `AgeCheckerAPI`, `AGEGO`, `Veriff`, `veriffSDK`), so the moment the page hands over its callbacks the "accepted" verdict is returned immediately.
+## Solução de problemas
 
-### Hide and Remove DOM Elements
-Removes popups, blurs, and overlays added when a page is marked NSFW. Example: AliExpress, Reddit.
+Se nada acontece num serviço suportado, verifique se o script chegou mesmo na
+página:
 
-**No data is collected.** There is no tracking of which sites you visit.
+1. Abra o site e o console do navegador.
+2. Rode `typeof AgeCheckerAPI` numa página do AgeChecker.net.
+3. `undefined` significa que o script não chegou no mundo da página. Normalmente o
+   gerenciador recusou a injeção em MAIN_WORLD por causa do CSP do site. Tente
+   outro gerenciador, ou reporte com o site e a saída do console.
 
-## Requirements
+## Atualizações
 
-The script uses `@grant none` so it runs in the page's own JavaScript context. This is required — in a sandboxed userscript, patching `window.fetch` has no effect on the page, and the whole script silently does nothing.
+O script checa por atualizações automaticamente via `@updateURL`/`@downloadURL`
+apontando para este repositório.
 
-The trade-off: a plain `<style>` element is subject to the site's `style-src` CSP, so the CSS-based de-blurring can be blocked on sites with a strict policy. `GM_addStyle` was not subject to it.
+## Créditos
 
-## Troubleshooting
+- Original: [helloyanis](https://github.com/helloyanis) — [add-on do Firefox](https://github.com/helloyanis/age-verification-bypass)
+- Engine de interceptação: [xtalia](https://github.com/xtalia/age-verification-bypass) / Hermes Agent
+- Port e correções: [LucianoSkx](https://github.com/LucianoSkx)
 
-If nothing happens on a supported site, check that the script actually reached the page:
-
-1. Open the site and the browser console.
-2. Run `typeof AgeCheckerAPI` on an AgeChecker.net page.
-3. `undefined` means the script did not reach the page world. Usually the userscript
-   manager refused MAIN_WORLD injection because of the site's CSP. Try a different
-   manager, or report it with the site and the console output.
-
-## Updates
-
-The script checks for updates automatically via `@updateURL`/`@downloadURL` pointing to this repository.
-
-## Credits
-
-- Original: [helloyanis](https://github.com/helloyanis) — [Firefox add-on](https://github.com/helloyanis/age-verification-bypass)
-- Port: [LucianoSkx](https://github.com/LucianoSkx)
-- Interception engine: [xtalia](https://github.com/xtalia/age-verification-bypass) / Hermes Agent
-
-## License
+## Licença
 
 MIT
