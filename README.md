@@ -1,9 +1,5 @@
 # Age Verification Bypass (userscript)
 
-**Versão atual: 2.1.1.** O `@updateURL` aponta para o `main`, então o
-gerenciador atualiza sozinho — mas confira a versão no painel, porque o
-navegador às vezes serve um `.user.js` antigo em cache.
-
 Port para userscript (Violentmonkey, Tampermonkey, Greasemonkey) do add-on do
 Firefox [helloyanis/age-verification-bypass](https://github.com/helloyanis/age-verification-bypass),
 com um engine de interceptação de `fetch`, XHR e SDKs carregados por `<script>`.
@@ -166,16 +162,6 @@ apontando para este repositório.
 ## Licença
 
 [MIT](LICENSE)
-
-```
-Copyright (c) 2026 helloyanis (add-on original do Firefox)
-Copyright (c) 2026 xtalia / Hermes Agent (engine de interceptação)
-Copyright (c) 2026 LucianoSkx (port para userscript e correções)
-```
-
-A ordem segue a contribuição real. O add-on original é do helloyanis; o engine
-de interceptação — a maior parte do código atual — é do xtalia; o port e as
-correções são meus.
 
 Se você copiar o engine de interceptação para outro projeto, a linha do xtalia
 precisa acompanhar.
