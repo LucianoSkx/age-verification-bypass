@@ -193,28 +193,44 @@
         };
 
         proto.send = function () {
-            try {
-                var url = this.__agebypass_url;
-                var r = url ? ruleFor(url) : null;
-                if (r && nativeText && nativeResp) {
-                    patchInstance(this, r, nativeText, nativeResp);
-                }
-            } catch (e) { log('xhr hook failed', e); }
+            // If a library wrapped prototype.open after us, __agebypass_url was
+            // never set and this hook would silently do nothing. send() cannot know
+            // the URL yet, so defer: patchInstance reads responseURL, which is
+            // populated by the time readyState hits 4.
+            try { if (nativeText && nativeResp) patchInstance(this, nativeText, nativeResp); }
+            catch (e) { log('xhr instance patch failed', e); }
             return send.apply(this, arguments);
         };
         log('XHR interception installed');
     }
 
+    // Re-arm once after document-start so a page that wraps prototype.open during
+    // its own bootstrap cannot clobber the hook. Any library doing that
+    // (analytics, polyfills) otherwise disables XHR interception with no error.
+    setTimeout(function () {
+        try { installXHR(); } catch (e) { log('xhr re-arm failed', e); }
+    }, 0);
+
     // Override the instance accessors so the page reads our transformed body,
     // not the raw one, no matter when it registered its own listener.
-    function patchInstance(xhr, r, nativeText, nativeResp) {
+    function patchInstance(xhr, nativeText, nativeResp) {
         var doneText = false, doneResp = false, cacheText, cacheResp;
+
+        // Resolved at read time, not at send time: by readyState 4 the URL is
+        // known even if our prototype.open hook was clobbered.
+        function ruleForThis() {
+            var url = xhr.__agebypass_url;
+            if (!url) { try { url = xhr.responseURL; } catch (e) {} }
+            return url ? ruleFor(url) : null;
+        }
 
         function transform(raw) {
             try {
+                var r = ruleForThis();
+                if (!r) return raw;
                 var ct = '';
                 try { ct = xhr.getResponseHeader('content-type') || ''; } catch (e) {}
-                var out = r.run(raw, { url: xhr.__agebypass_url, contentType: ct, via: 'xhr' });
+                var out = r.run(raw, { url: xhr.__agebypass_url || xhr.responseURL, contentType: ct, via: 'xhr' });
                 return (out == null) ? raw : out;
             } catch (e) { return raw; }
         }

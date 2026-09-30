@@ -184,8 +184,9 @@ function makeSandbox(hostname, fetchImpl) {
             this.readyState = 0;
             this.responseType = '';
             this.payload = '';
+            this.responseURL = '';
         }
-        open() { this.readyState = 1; }
+        open(url) { this.readyState = 1; if (url) this.responseURL = String(url); }
         send() { this.readyState = 4; }
         addEventListener() {}
         getResponseHeader() { return 'application/json'; }
@@ -307,6 +308,24 @@ if (rootSrc) {
         s.window.ageverif.on('success', (p) => got.push(p && p.status));
         s.window.ageverif.start();
         assert(got.join(',') === 'success', 'start() must emit success, got: ' + JSON.stringify(got));
+    });
+
+    // Measured on bsky.app: the app reassigns XMLHttpRequest.prototype.open after
+    // document-start, clobbering our hook. Interception must survive that.
+    runRuntime('XHR survives a clobbered prototype.open', 'agechecker.net', (s) => {
+        const proto = s.window.XMLHttpRequest.prototype;
+        // A library wrapper: no longer our hook, but still behaves natively, so
+        // responseURL gets populated exactly as the browser would.
+        proto.open = function (method, url) { this.readyState = 1; this.responseURL = String(url); };
+        const xhr = new s.window.XMLHttpRequest();
+        xhr.responseType = 'json';
+        xhr.open('POST', 'https://api.agechecker.net/v1/create');
+        xhr.payload = '{"original":true}';
+        xhr.send();
+        assert(xhr.__agebypass_url === undefined, 'open should not be our hook any more');
+        const data = xhr.response;
+        assert(data && data.status === 'accepted',
+            'rewrite must fall back to responseURL, got ' + JSON.stringify(data));
     });
 
     runRuntime('non-matching hosts register no rewriting rule', 'example.com', (s) => {
