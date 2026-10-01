@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      2.1.1
+// @version      2.1.2
 // @description  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, Veriff, AliExpress, Bluesky, Reddit, RedGIFs, SpankBang, Cosxplay, angelogodshackxxx.com, x.com/Twitter, mais dicas Tor para rule34/xHamster. Intercepta fetch, XHR e SDKs carregados por <script>. Nenhum dado é coletado. Port do add-on Firefox do helloyanis; engine de interceptação por xtalia/Hermes Agent.
 // @author       helloyanis (original), xtalia/Hermes Agent (engine de interceptação), LucianoSkx (port e correções)
 // @match        *://*/*
