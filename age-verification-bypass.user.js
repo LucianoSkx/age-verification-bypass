@@ -143,7 +143,20 @@
 
     // --------------------------------------------------------- interceptação ---
 
+    function isShortlinkSkipperPresent() {
+        try {
+            return !!(W.__slCfWatch || W.__slLootHooked || W.__slBstlarHooked || W.__slLootCapInstalled || W.__slNetCapturing);
+        } catch (e) {}
+        return false;
+    }
+
     function installFetch() {
+        // Se o shortlink-skipper já está ativo nesta aba, não competimos
+        // pelo fetch/XHR para não quebrar a página sob verificação Cloudflare.
+        if (isShortlinkSkipperPresent()) {
+            log('shortlink-skipper detectado — não instala interceptação de fetch/XHR');
+            return;
+        }
         var origFetch = W.fetch;
         if (typeof origFetch !== 'function') return;
         // Já é o nosso: re-armar não pode empilhar wrappers.
@@ -174,6 +187,10 @@
     }
 
     function installXHR() {
+        if (isShortlinkSkipperPresent()) {
+            log('shortlink-skipper detectado — não instala interceptação de XHR');
+            return;
+        }
         var XHR = W.XMLHttpRequest;
         if (!XHR || !XHR.prototype) return;
         var proto = XHR.prototype;
@@ -911,8 +928,20 @@
     })();
 
     // -------------------------------------------------- inicia engines ----
-    installFetch();
-    installXHR();
+    // Se o shortlink-skipper está presente, não competimos pelo fetch/XHR
+    // para evitar quebrar a página sob verificação Cloudflare ou outras.
+    if (!isShortlinkSkipperPresent()) {
+        installFetch();
+        installXHR();
+        [0, 250, 1000, 3000].forEach(function (ms) {
+            setTimeout(function () {
+                installFetch();
+                installXHR();
+            }, ms);
+        });
+    } else {
+        log('shortlink-skipper detectado — interceptação de fetch/XHR desativada');
+    }
 
     // Uma página que reatribui window.fetch ou XMLHttpRequest.prototype.open no
     // próprio bootstrap desarma a interceptação em silêncio. Medido no
