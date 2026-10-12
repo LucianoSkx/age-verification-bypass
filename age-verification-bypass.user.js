@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      2.1.2
+// @version      2.1.3
 // @description  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, Veriff, AliExpress, Bluesky, Reddit, RedGIFs, SpankBang, Cosxplay, angelogodshackxxx.com, x.com/Twitter, mais dicas Tor para rule34/xHamster. Intercepta fetch, XHR e SDKs carregados por <script>. Nenhum dado é coletado. Port do add-on Firefox do helloyanis; engine de interceptação por xtalia/Hermes Agent.
 // @author       helloyanis (original), xtalia/Hermes Agent (engine de interceptação), LucianoSkx (port e correções)
 // @match        *://*/*
@@ -154,7 +154,7 @@
         // Se o shortlink-skipper já está ativo nesta aba, não competimos
         // pelo fetch/XHR para não quebrar a página sob verificação Cloudflare.
         if (isShortlinkSkipperPresent()) {
-            log('shortlink-skipper detectado — não instala interceptação de fetch/XHR');
+            log('shortlink-skipper detectado — não instala interceptação de fetch');
             return;
         }
         var origFetch = W.fetch;
@@ -928,20 +928,8 @@
     })();
 
     // -------------------------------------------------- inicia engines ----
-    // Se o shortlink-skipper está presente, não competimos pelo fetch/XHR
-    // para evitar quebrar a página sob verificação Cloudflare ou outras.
-    if (!isShortlinkSkipperPresent()) {
-        installFetch();
-        installXHR();
-        [0, 250, 1000, 3000].forEach(function (ms) {
-            setTimeout(function () {
-                installFetch();
-                installXHR();
-            }, ms);
-        });
-    } else {
-        log('shortlink-skipper detectado — interceptação de fetch/XHR desativada');
-    }
+    installFetch();
+    installXHR();
 
     // Uma página que reatribui window.fetch ou XMLHttpRequest.prototype.open no
     // próprio bootstrap desarma a interceptação em silêncio. Medido no

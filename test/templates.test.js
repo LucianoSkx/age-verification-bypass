@@ -110,7 +110,7 @@ for (const [rel, src] of sources) {
     });
 
     check(`${rel} mantém o engine de interceptação completo`, () => {
-        for (const fn of ['installFetch', 'installXHR', 'patchInstance', 'trapGlobal', 'ruleFor', 'withBody']) {
+        for (const fn of ['installFetch', 'installXHR', 'patchInstance', 'trapGlobal', 'ruleFor', 'withBody', 'isShortlinkSkipperPresent']) {
             assert(new RegExp('function ' + fn + '\\b').test(src), `missing engine function ${fn}`);
         }
         assert(src.indexOf("headers.delete('content-length')") !== -1, 'falta a limpeza de header da response');
@@ -354,6 +354,21 @@ if (rootSrc) {
         const first = s.window.fetch;
         s.window.__timers.forEach((fn) => fn());
         assert(s.window.fetch === first, 're-armar o nosso próprio wrapper tem que ser no-op');
+    });
+
+    // c84fe02: com o shortlink-skipper ativo na aba, a interceptação de
+    // fetch/XHR não instala. A política vive nos guards dos instaladores, então
+    // o teste carrega o script já com o global do skipper publicado — é assim
+    // que os dois userscripts convivem sem disputar window.fetch.
+    check('com shortlink-skipper presente, fetch e XHR não são instalados', () => {
+        const originalFetch = async () =>
+            new Response('{"original":true}', { status: 200, headers: { 'content-type': 'application/json' } });
+        const sandbox = makeSandbox('agechecker.net', originalFetch);
+        sandbox.window.__slCfWatch = true;
+        loadScript(sandbox, rootSrc);
+        assert(sandbox.window.fetch === originalFetch, 'o fetch foi patcheado com o skipper presente');
+        assert(String(sandbox.window.XMLHttpRequest.prototype.send).indexOf('patchInstance') === -1,
+            'send foi hookado com o skipper presente');
     });
 
     runRuntime('hosts que não casam não registram regra de reescrita', 'example.com', (s) => {

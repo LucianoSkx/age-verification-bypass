@@ -125,6 +125,15 @@ o veredito "aceito" é devolvido na hora.
 Remove popups, blurs e overlays adicionados quando uma página é marcada como
 NSFW. Exemplo: AliExpress, Reddit.
 
+### Convive com o shortlink-skipper
+
+Se outro userscript (o shortlink-skipper) está ativo na aba — detectado pelos
+globais `__sl*` que ele publica em `window` —, a interceptação de `fetch`/XHR
+não é instalada. Os dois disputavam `window.fetch` e
+`XMLHttpRequest.prototype` e, juntos, quebravam a página sob verificação
+Cloudflare. Nesse modo, traps de SDK, regras de host e manipulação de DOM
+continuam ativos; só o transporte deixa de ser interceptado.
+
 **Nenhum dado é coletado.** Não há rastreamento de quais sites você visita.
 
 ## Requisitos
