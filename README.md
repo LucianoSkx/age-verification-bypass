@@ -139,6 +139,12 @@ não é instalada. Os dois disputavam `window.fetch` e
 Cloudflare. Nesse modo, traps de SDK, regras de host e manipulação de DOM
 continuam ativos; só o transporte deixa de ser interceptado.
 
+Se o skipper carregar *depois* deste script, a interceptação é desinstalada
+no re-arm seguinte (`fetch` e `open`/`send` voltam a ser os que existiam
+antes), em vez de os dois wrappers conviverem. A restauração só acontece
+quando o valor em `window` ainda é o nosso — uma página que trocou `fetch`
+por conta própria não é sobrescrita.
+
 **Nenhum dado é coletado.** Não há rastreamento de quais sites você visita.
 
 ## Requisitos

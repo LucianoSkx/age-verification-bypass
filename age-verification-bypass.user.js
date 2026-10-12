@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      2.1.4
+// @version      2.1.5
 // @description  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, Veriff, AliExpress, Bluesky, Reddit, RedGIFs, SpankBang, Cosxplay, angelogodshackxxx.com, x.com/Twitter, mais dicas Tor para rule34/xHamster. Intercepta fetch, XHR e SDKs carregados por <script>. Nenhum dado é coletado. Port do add-on Firefox do helloyanis; engine de interceptação por xtalia/Hermes Agent.
 // @author       helloyanis (original), xtalia/Hermes Agent (engine de interceptação), LucianoSkx (port e correções)
 // @match        *://*/*
@@ -152,10 +152,19 @@
 
     // --------------------------------------------------------- interceptação ---
 
+    // Originais guardados no install, para o uninstall poder desfazer.
+    var savedFetch, savedXHROpen, savedXHRSend;
+
     function isShortlinkSkipperPresent() {
         try {
             return !!(W.__slCfWatch || W.__slLootHooked || W.__slBstlarHooked || W.__slLootCapInstalled || W.__slNetCapturing);
-        } catch (e) {}
+        } catch (e) {
+            // Continua falhando para false (instala) de propósito: falhar para
+            // true daria a qualquer página com getter hostil nesses nomes o
+            // poder de desligar o bypass. O log é para a exceção não passar
+            // em silêncio — regra da casa.
+            log('falha ao detectar o shortlink-skipper', e);
+        }
         return false;
     }
 
@@ -191,8 +200,20 @@
             });
         };
         try { wrapped.__agebypass = true; } catch (e) {}
+        savedFetch = origFetch;
         W.fetch = wrapped;
         log('interceptação de fetch instalada');
+    }
+
+    // Só desfaz se o fetch em window ainda é o nosso: se a página trocou fetch
+    // nesse meio tempo, restaurar por cima calaria a troca dela.
+    function uninstallFetch() {
+        if (savedFetch === undefined) return;
+        if (W.fetch && W.fetch.__agebypass) {
+            W.fetch = savedFetch;
+            log('interceptação de fetch desinstalada');
+        }
+        savedFetch = undefined;
     }
 
     function installXHR() {
@@ -212,7 +233,6 @@
             try { this.__agebypass_url = urlOf(url); } catch (e) {}
             return open.apply(this, arguments);
         };
-
         proto.send = function () {
             // Se uma biblioteca embrulhou prototype.open depois de nós,
             // __agebypass_url nunca é setado e este hook não faz nada, em silêncio.
@@ -222,7 +242,27 @@
             catch (e) { log('falha ao patchar a instância de XHR', e); }
             return send.apply(this, arguments);
         };
+        try { proto.open.__agebypass = true; proto.send.__agebypass = true; } catch (e) {}
+        savedXHROpen = open;
+        savedXHRSend = send;
         log('interceptação de XHR instalada');
+    }
+
+    // Restaura open/send um a um, e só os que ainda são os nossos.
+    function uninstallXHR() {
+        var restored = false;
+        var XHR = W.XMLHttpRequest;
+        if (XHR && XHR.prototype) {
+            var proto = XHR.prototype;
+            if (savedXHROpen !== undefined && proto.open && proto.open.__agebypass) {
+                proto.open = savedXHROpen; restored = true;
+            }
+            if (savedXHRSend !== undefined && proto.send && proto.send.__agebypass) {
+                proto.send = savedXHRSend; restored = true;
+            }
+        }
+        savedXHROpen = savedXHRSend = undefined;
+        if (restored) log('interceptação de XHR desinstalada');
     }
 
     // Re-arma uma vez depois do document-start para que uma página que embrulha
@@ -230,6 +270,7 @@
     // biblioteca que faça isso (analytics, polyfills) desativa a interceptação
     // de XHR sem nenhum erro.
     setTimeout(function () {
+        if (isShortlinkSkipperPresent()) { uninstallXHR(); return; }
         try { installXHR(); } catch (e) { log('falha no re-arm do XHR', e); }
     }, 0);
 
@@ -951,6 +992,9 @@
     // (verificado — a página parou de responder a execução de script por completo).
     [0, 250, 1000, 3000].forEach(function (ms) {
         setTimeout(function () {
+            // O skipper pode subir depois de nós: nesse tick a política é
+            // desinstalar, não re-armar.
+            if (isShortlinkSkipperPresent()) { uninstallFetch(); uninstallXHR(); return; }
             installFetch();
             installXHR();
         }, ms);

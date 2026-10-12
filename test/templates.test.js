@@ -110,7 +110,7 @@ for (const [rel, src] of sources) {
     });
 
     check(`${rel} mantém o engine de interceptação completo`, () => {
-        for (const fn of ['installFetch', 'installXHR', 'patchInstance', 'trapGlobal', 'ruleFor', 'withBody', 'isShortlinkSkipperPresent']) {
+        for (const fn of ['installFetch', 'installXHR', 'uninstallFetch', 'uninstallXHR', 'patchInstance', 'trapGlobal', 'ruleFor', 'withBody', 'isShortlinkSkipperPresent']) {
             assert(new RegExp('function ' + fn + '\\b').test(src), `missing engine function ${fn}`);
         }
         assert(src.indexOf("headers.delete('content-length')") !== -1, 'falta a limpeza de header da response');
@@ -381,6 +381,35 @@ if (rootSrc) {
         assert(sandbox.window.fetch === originalFetch, 'o fetch foi patcheado com o skipper presente');
         assert(String(sandbox.window.XMLHttpRequest.prototype.send).indexOf('patchInstance') === -1,
             'send foi hookado com o skipper presente');
+    });
+
+    // O skipper pode carregar depois de nós. O re-arm que re-instalaria passa a
+    // desinstalar: o wrapper sai do fetch e open/send voltam a ser os nativos.
+    check('skipper que chega depois desinstala a interceptação', () => {
+        const originalFetch = async () =>
+            new Response('{"original":true}', { status: 200, headers: { 'content-type': 'application/json' } });
+        const sandbox = makeSandbox('agechecker.net', originalFetch);
+        const origSend = sandbox.window.XMLHttpRequest.prototype.send;
+        loadScript(sandbox, rootSrc);
+        assert(sandbox.window.fetch !== originalFetch, 'pré-condição: o fetch foi patcheado');
+        sandbox.window.__slCfWatch = true;
+        sandbox.window.__timers.forEach((fn) => fn());
+        assert(sandbox.window.fetch === originalFetch, 'o fetch não voltou ao original');
+        assert(sandbox.window.XMLHttpRequest.prototype.send === origSend, 'send não voltou ao original');
+    });
+
+    // Desinstalar por cima de um fetch que a página trocou calaria a troca
+    // dela: a restauração só vale quando o valor atual ainda é o nosso.
+    check('a desinstalação não cala um fetch que a página trocou', () => {
+        const originalFetch = async () =>
+            new Response('{"original":true}', { status: 200, headers: { 'content-type': 'application/json' } });
+        const sandbox = makeSandbox('agechecker.net', originalFetch);
+        loadScript(sandbox, rootSrc);
+        const pageFetch = function () { return Promise.resolve(new Response('{}')); };
+        sandbox.window.fetch = pageFetch;
+        sandbox.window.__slCfWatch = true;
+        sandbox.window.__timers.forEach((fn) => fn());
+        assert(sandbox.window.fetch === pageFetch, 'o fetch da página foi sobrescrito');
     });
 
     // Fora dos hosts com regra viva, o engine não instala: o gate de SUPPORTED
