@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      2.1.3
+// @version      2.1.4
 // @description  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, Veriff, AliExpress, Bluesky, Reddit, RedGIFs, SpankBang, Cosxplay, angelogodshackxxx.com, x.com/Twitter, mais dicas Tor para rule34/xHamster. Intercepta fetch, XHR e SDKs carregados por <script>. Nenhum dado é coletado. Port do add-on Firefox do helloyanis; engine de interceptação por xtalia/Hermes Agent.
 // @author       helloyanis (original), xtalia/Hermes Agent (engine de interceptação), LucianoSkx (port e correções)
 // @match        *://*/*
@@ -33,6 +33,15 @@
     var W = (typeof unsafeWindow !== 'undefined' && unsafeWindow) ? unsafeWindow : window;
     var D = W.document;
     var HOST = W.location.hostname || '';
+
+    // Espelho dos gates das seções de serviço abaixo: só nesses hosts existe
+    // regra viva. Fora daqui o engine não instala — regra casa por URL de
+    // request, mas wrapper de fetch/XHR global em página sem suporte é só
+    // superfície de interferência (o conflito com o shortlink-skipper, c84fe02,
+    // era exatamente isso). Custo conhecido: integração de Veriff/AgeGO/
+    // AgeChecker embedada em site de terceiro deixa de ser coberta.
+    var SUPPORTED = /(^|\.)agechecker\.net$|^(verifycdn|myapi)\.agego\.com$|(^|\.)ageverif\.com$|(^|\.)veriff\.(me|com)$|(^|\.)aliexpress\.[a-z.]+$|(^|\.)bsky\.(app|social)$|(^|\.)reddit\.com$|(^|\.)redgifs\.com$|(^|\.)spankbang\.com$|(^|\.)x\.com$|(^|\.)twitter\.com$|(^|\.)cosxplay\.com$|(^|\.)angelogodshackxxx\.com$|(^|\.)rule34\.xxx$|(^|\.)xhamster\.com$/;
+    if (!SUPPORTED.test(HOST)) return;
 
     // ---------------------------------------------------------- utilitários ---
 

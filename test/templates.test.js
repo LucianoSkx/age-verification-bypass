@@ -117,6 +117,18 @@ for (const [rel, src] of sources) {
         assert(src.indexOf("headers.delete('content-encoding')") !== -1, 'falta a limpeza de header da response');
     });
 
+    check(`${rel} trava o engine nos hosts suportados`, () => {
+        const m = src.match(/var SUPPORTED = \/(.+?)\/\;/);
+        assert(m, 'falta o gate de hosts suportados (var SUPPORTED)');
+        const gate = new RegExp(m[1]);
+        for (const host of ['agechecker.net', 'verifycdn.agego.com', 'demo.ageverif.com', 'veriff.com',
+            'www.aliexpress.com', 'bsky.app', 'www.reddit.com', 'www.redgifs.com', 'spankbang.com',
+            'x.com', 'twitter.com', 'cosxplay.com', 'angelogodshackxxx.com', 'rule34.xxx', 'xhamster.com']) {
+            assert(gate.test(host), `o gate não cobre ${host}`);
+        }
+        assert(!gate.test('example.com'), 'o gate não pode cobrir host sem regra');
+    });
+
     // Regressões que existiam no 1.x e no rascunho 2.0.0 do upstream.
     check(`${rel} não apaga as thumbnails do spankbang`, () => {
         assert(!/data-testid='video-item'>a>picture>div/.test(src), 'remove as thumbnails de vídeo de novo');
@@ -369,6 +381,18 @@ if (rootSrc) {
         assert(sandbox.window.fetch === originalFetch, 'o fetch foi patcheado com o skipper presente');
         assert(String(sandbox.window.XMLHttpRequest.prototype.send).indexOf('patchInstance') === -1,
             'send foi hookado com o skipper presente');
+    });
+
+    // Fora dos hosts com regra viva, o engine não instala: o gate de SUPPORTED
+    // devolve o script antes de tocar em fetch/XHR.
+    check('host sem suporte não instala o engine', () => {
+        const originalFetch = async () =>
+            new Response('{"original":true}', { status: 200, headers: { 'content-type': 'application/json' } });
+        const sandbox = makeSandbox('example.com', originalFetch);
+        loadScript(sandbox, rootSrc);
+        assert(sandbox.window.fetch === originalFetch, 'o fetch foi patcheado em host sem suporte');
+        assert(String(sandbox.window.XMLHttpRequest.prototype.send).indexOf('patchInstance') === -1,
+            'send foi hookado em host sem suporte');
     });
 
     runRuntime('hosts que não casam não registram regra de reescrita', 'example.com', (s) => {

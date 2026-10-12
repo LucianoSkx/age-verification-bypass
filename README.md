@@ -17,14 +17,14 @@ com um engine de interceptação de `fetch`, XHR e SDKs carregados por `<script>
 ## Serviços suportados
 
 - **[AgeChecker.net](https://agechecker.net/demo)** — Bypass completo, a menos que o site faça uma double-check no servidor · **verificado**
-- **[AgeGO](https://agego.com)** — Integração básica e avançada; modo servidor-a-servidor (pode falhar se o site fizer verificações adicionais) · não testado — só alcançável dentro de uma integração real do AgeGO
+- **[AgeGO](https://agego.com)** — Integração básica e avançada; modo servidor-a-servidor (pode falhar se o site fizer verificações adicionais) · não testado — só em verifycdn./myapi.agego.com; integração embutida em site de terceiro não é coberta (gate de host)
 - **[AgeVerif.com](https://demo.ageverif.com/)** — Integração básica; os fluxos avançado e OAuth2 não são tratados · **verificado**
 - **[AliExpress](https://aliexpress.com/)** — Itens "For adults" (remove blur, modal e overlays, incluindo produtos sugeridos) · **verificado** (regra de de-blur; não exercitada num listing adulto real)
 - **[Bluesky](https://bsky.app)** — Posts sensíveis sem login (automod + posts autolabelados); mídia revelada ao clicar em "Show" · não testado
 - **[Reddit](https://reddit.com)** — Comunidades NSFW (funciona melhor deslogado; considere o [redlib](https://redlib.catsarch.com/) para um frontend Reddit totalmente privado) · **parcialmente quebrado** — ver abaixo
 - **[RedGIFs](https://www.redgifs.com/)** — Libera o bloqueio geográfico reescrevendo `api.redgifs.com/v2/geolocation` · não testado — o bloqueio é geogateado e não vem ativo do Brasil
 - **[SpankBang](https://spankbang.com)** — Ver vídeos mesmo deslogado (remove blur/overlay e neutraliza o modal de verificação) · não testado
-- **[Veriff](https://veriff.com)** — Funciona em poucos sites (não espere que funcione em todos) · não testado — só alcançável dentro de uma integração real do Veriff
+- **[Veriff](https://veriff.com)** — Funciona em poucos sites (não espere que funcione em todos) · não testado — só em veriff.com/veriff.me; integração embutida em site de terceiro não é coberta (gate de host)
 - **[x.com / Twitter](https://x.com)** — **as regras não batem com a API atual** — ver abaixo. Originalmente mirava `TweetResultByRestId`, `TweetDetail`, `UserOriginalsTimeline` e `UserTweetsAndReplies`; exige estar logado (sincronizado com o upstream 1.3.1, ainda BETA lá)
 - **[Cosxplay](https://cosxplay.com)** — Bloqueia o script de verificação de idade (`age.js`) · **verificado**
 - **[AngeloGodsHack](https://angelogodshackxxx.com)** — Remove o modal de age gate · **verificado**
@@ -107,6 +107,11 @@ exatamente a classe de erro que este arquivo existe para documentar.
 
 ## Como funciona
 
+O script só atua nos hosts da lista de serviços suportados. Fora deles não
+instala nada: as regras casam por URL de request, mas o engine de `fetch`/XHR
+não é instalado em página sem suporte — wrapper global nesses casos é só
+superfície de interferência.
+
 Três métodos principais:
 
 ### Reescreve a resposta do servidor
@@ -149,7 +154,8 @@ sujeito a remoção por páginas que apagam styles injetados (ver Reddit). O
 ## Solução de problemas
 
 Se nada acontece num serviço suportado, verifique se o script chegou mesmo na
-página:
+página. Num site fora da lista de suportados, o script não faz nada por
+design — o gate de host devolve a execução antes de instalar qualquer coisa:
 
 1. Abra o site e o console do navegador.
 2. Rode `typeof AgeCheckerAPI` numa página do AgeChecker.net.
