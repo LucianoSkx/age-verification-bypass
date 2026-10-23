@@ -1,49 +1,56 @@
 # Age Verification Bypass (userscript)
 
-Port para userscript (Violentmonkey, Tampermonkey, Greasemonkey) do add-on do
-Firefox [helloyanis/age-verification-bypass](https://github.com/helloyanis/age-verification-bypass),
-com um engine de interceptação de `fetch`, XHR e SDKs carregados por `<script>`.
+Remove popups e gates de verificação de idade nos serviços listados abaixo — sem
+coletar dados.
+
+Port do add-on de Firefox [helloyanis/age-verification-bypass](https://github.com/helloyanis/age-verification-bypass)
+com um engine próprio de interceptação de `fetch`, XHR e SDKs carregados por
+`<script>`.
 
 ## Instalação
 
-1. Instale o [Violentmonkey](https://violentmonkey.github.io/) (recomendado), o [Tampermonkey](https://www.tampermonkey.net/) ou o [Greasemonkey](https://www.greasespot.net/)
-2. Clique em [instalar](https://raw.githubusercontent.com/LucianoSkx/age-verification-bypass/main/age-verification-bypass.user.js)
-3. Confirme a instalação
+1. **Gerenciador** — instale o [Violentmonkey](https://violentmonkey.github.io/)
+   (recomendado), o [Tampermonkey](https://www.tampermonkey.net/) ou o
+   [Greasemonkey](https://www.greasespot.net/).
+2. **Script** — clique em [instalar](https://raw.githubusercontent.com/LucianoSkx/age-verification-bypass/main/age-verification-bypass.user.js).
+3. **Confirmação** — aceite o prompt de instalação do gerenciador.
 
-> O navegador às vezes serve uma versão antiga do `.user.js` em cache. Faça um
-> hard-reload antes de instalar e confira no painel do gerenciador se o código
-> contém `__agebypass`. Se não contém, é cache.
+> **Cache.** O navegador às vezes serve uma versão antiga do `.user.js`. Faça um
+> hard-reload antes de instalar e confira no painel se o código contém
+> `__agebypass`; se não contém, é cache.
 
 ## Serviços suportados
 
-- **[AgeChecker.net](https://agechecker.net/demo)** — Bypass completo, a menos que o site faça uma double-check no servidor · **verificado**
-- **[AgeGO](https://agego.com)** — Integração básica e avançada; modo servidor-a-servidor (pode falhar se o site fizer verificações adicionais) · não testado — só em verifycdn./myapi.agego.com; integração embutida em site de terceiro não é coberta (gate de host)
-- **[AgeVerif.com](https://demo.ageverif.com/)** — Integração básica; os fluxos avançado e OAuth2 não são tratados · **verificado**
-- **[AliExpress](https://aliexpress.com/)** — Itens "For adults" (remove blur, modal e overlays, incluindo produtos sugeridos) · **verificado** (regra de de-blur; não exercitada num listing adulto real)
-- **[Bluesky](https://bsky.app)** — Posts sensíveis sem login (automod + posts autolabelados); mídia revelada ao clicar em "Show" · não testado
-- **[Reddit](https://reddit.com)** — Comunidades NSFW (funciona melhor deslogado; considere o [redlib](https://redlib.catsarch.com/) para um frontend Reddit totalmente privado) · **parcialmente quebrado** — ver abaixo
-- **[RedGIFs](https://www.redgifs.com/)** — Libera o bloqueio geográfico reescrevendo `api.redgifs.com/v2/geolocation` · não testado — o bloqueio é geogateado e não vem ativo do Brasil
-- **[MeWe](https://mewe.com)** — Reescreve `/api/v2/me/info` para `verificationStatus: "not_needed"` · não testado
-- **[SpankBang](https://spankbang.com)** — Ver vídeos mesmo deslogado (remove blur/overlay e neutraliza o modal de verificação) · não testado
-- **[Veriff](https://veriff.com)** — Funciona em poucos sites (não espere que funcione em todos) · não testado — só em veriff.com/veriff.me; integração embutida em site de terceiro não é coberta (gate de host)
-- **[x.com / Twitter](https://x.com)** — **as regras não batem com a API atual** — ver abaixo. Segue o upstream 1.3.7: `TweetResultByRestId`, `TweetDetail`, `SearchTimeline`, `HomeTimeline`, `HomeLatestTimeline`, `Bookmarks`, `UserOriginalsTimeline` e `UserTweetsAndReplies`, incluindo tweets citados e fixados; exige estar logado (ainda BETA lá)
-- **[Cosxplay](https://cosxplay.com)** — Bloqueia o script de verificação de idade (`age.js`) · **verificado**
-- **[AngeloGodsHack](https://angelogodshackxxx.com)** — Remove o modal de age gate · **verificado**
-- **[rule34.xxx](https://rule34.xxx)** — Bloqueio geográfico — mostra uma dica de Tor Browser (sem bypass direto, igual ao upstream) · **verificado**
-- **[xHamster](https://xhamster.com)** — Bloqueio geográfico — mostra uma dica de Tor Browser (sem bypass direto, igual ao upstream) · não testado — o gatilho é geogateado e não dispara de toda região
+| Serviço | O que faz | Status |
+| --- | --- | --- |
+| [AgeChecker.net](https://agechecker.net/demo) | Bypass completo, a menos que o site faça double-check no servidor | **verificado** |
+| [AgeGO](https://agego.com) | Integração básica e avançada; modo servidor-a-servidor pode falhar se o site fizer verificações adicionais. Só em `verifycdn.`/`myapi.agego.com`; embed em terceiro não é coberto | *não testado* |
+| [AgeVerif.com](https://demo.ageverif.com/) | Integração básica; fluxos avançado e OAuth2 não são tratados | **verificado** |
+| [AliExpress](https://aliexpress.com/) | Itens "For adults": remove blur, modal e overlays, incluindo produtos sugeridos. A regra de de-blur não foi exercitada num listing adulto real | **verificado** |
+| [AngeloGodsHack](https://angelogodshackxxx.com) | Remove o modal de age gate | **verificado** |
+| [Bluesky](https://bsky.app) | Posts sensíveis sem login (automod + posts autolabelados); mídia revelada ao clicar em "Show" | *não testado* |
+| [Cosxplay](https://cosxplay.com) | Bloqueia o script de verificação de idade (`age.js`) | **verificado** |
+| [MeWe](https://mewe.com) | Reescreve `/api/v2/me/info` para `verificationStatus: "not_needed"` | *não testado* |
+| [Reddit](https://reddit.com) | Comunidades NSFW; funciona melhor deslogado (considere o [redlib](https://redlib.catsarch.com/) para um frontend privado) — ver limitações | **parcial** |
+| [RedGIFs](https://www.redgifs.com/) | Libera o bloqueio geográfico reescrevendo `api.redgifs.com/v2/geolocation`; o bloqueio não vem ativo do Brasil | *não testado* |
+| [rule34.xxx](https://rule34.xxx) | Bloqueio geográfico; mostra uma dica de Tor Browser (sem bypass direto) | **verificado** |
+| [SpankBang](https://spankbang.com) | Ver vídeos mesmo deslogado: remove blur/overlay e neutraliza o modal | *não testado* |
+| [Veriff](https://veriff.com) | Funciona em poucos sites. Só em `veriff.com`/`veriff.me`; embed em terceiro não é coberto | *não testado* |
+| [x.com / Twitter](https://x.com) | Posts sensíveis, inclusive citados e fixados; exige estar logado (recurso ainda em BETA no upstream). As regras podem não bater com a API atual — ver limitações | **parcial** |
+| [xHamster](https://xhamster.com) | Bloqueio geográfico; mostra uma dica de Tor Browser (sem bypass direto); o gatilho não dispara de toda região | *não testado* |
 
 ### Rótulos de status
 
-- **verificado** — checado em um navegador real contra o serviço no ar.
-- **parcialmente quebrado** — uma lacuna conhecida, descrita abaixo.
-- *não testado* — coberto apenas pela suíte de testes. O caminho de código existe
-  e é exercitado no CI, mas ninguém rodou contra o site real. Espere quebrar.
+- **verificado** — testado num navegador real, contra o serviço no ar.
+- **parcial** — funciona em parte; a lacuna está nas limitações abaixo.
+- *não testado* — coberto só pela suíte de testes. O caminho de código existe e
+  roda no CI, mas ninguém testou contra o site real. Espere quebrar.
 
-Um CI verde significa que o engine de interceptação é internamente consistente,
-não que todo serviço listado funciona. Vários destes só são alcançáveis dentro
-de uma integração real de terceiro.
+CI verde significa que o engine de interceptação é internamente consistente, não
+que todo serviço listado funciona. Vários só são alcançáveis dentro de uma
+integração real de terceiro.
 
-### Opções
+## Opções
 
 O add-on original tem um popup de configurações. Userscript não tem, então as
 opções vêm de `localStorage`, no console:
@@ -55,6 +62,36 @@ localStorage.setItem('avb_bsky_blurs', 'none');
 
 Só o Bluesky tem opção por enquanto — os outros serviços seguem o comportamento
 fixo do upstream.
+
+## Como funciona
+
+O script só atua nos hosts da lista de serviços suportados. Fora deles não
+instala nada: as regras casam por URL de request, mas o engine de `fetch`/XHR
+não é instalado em página sem suporte — wrapper global nesses casos é só
+superfície de interferência.
+
+### Reescreve a resposta do servidor
+
+Intercepta a resposta que decide o gate e devolve um payload já aprovado —
+`{"status":"accepted"}` no AgeChecker, `verificationStatus: "not_needed"` no
+MeWe — ou desativa os blurs na config do labeler do Bluesky.
+
+### Trava os globals do SDK
+
+Alguns SDKs são carregados por uma tag `<script src>` pura, que nem `fetch` nem
+XHR enxergam. O script define accessors nos globals de config que esses SDKs
+atribuem a si mesmos (`AgeCheckerConfig`, `AgeCheckerAPI`, `AGEGO`, `Veriff`,
+`veriffSDK`, `ageverif`), então no instante em que a página entrega seus
+callbacks o veredito "aceito" é devolvido na hora.
+
+### Esconde e remove elementos do DOM
+
+Remove popups, blurs e overlays adicionados quando uma página é marcada como
+NSFW. Exemplos: AliExpress, Reddit.
+
+**Nenhum dado é coletado.** Não há rastreamento de quais sites você visita.
+
+## Limitações conhecidas
 
 ### Reddit: styles injetados não sobrevivem
 
@@ -129,48 +166,6 @@ requisição de `<script src>` não passa por `fetch`/XHR. Userscript não tem
 `webRequest`, então não há equivalente com `@grant none`. A regra não foi
 portada para não repetir o caso do `checker.js` do AgeVerif (código que nunca
 dispara).
-
-## Como funciona
-
-O script só atua nos hosts da lista de serviços suportados. Fora deles não
-instala nada: as regras casam por URL de request, mas o engine de `fetch`/XHR
-não é instalado em página sem suporte — wrapper global nesses casos é só
-superfície de interferência.
-
-Três métodos principais:
-
-### Reescreve a resposta do servidor
-Intercepta a resposta que decide o gate e devolve um payload já aprovado —
-`{"status":"accepted"}` no AgeChecker, `verificationStatus: "not_needed"` no
-MeWe — ou desativa os blurs na config do labeler do Bluesky.
-
-### Trava os globals do SDK
-Alguns SDKs são carregados por uma tag `<script src>` puro, que nem `fetch` nem
-XHR enxergam. O script define accessors nos globals de config que esses SDKs
-atribuem a si mesmos (`AgeCheckerConfig`, `AgeCheckerAPI`, `AGEGO`, `Veriff`,
-`veriffSDK`, `ageverif`), então no instante em que a página entrega seus callbacks
-o veredito "aceito" é devolvido na hora.
-
-### Esconde e remove elementos do DOM
-Remove popups, blurs e overlays adicionados quando uma página é marcada como
-NSFW. Exemplo: AliExpress, Reddit.
-
-### Convive com o shortlink-skipper
-
-Se outro userscript (o shortlink-skipper) está ativo na aba — detectado pelos
-globais `__sl*` que ele publica em `window` —, a interceptação de `fetch`/XHR
-não é instalada. Os dois disputavam `window.fetch` e
-`XMLHttpRequest.prototype` e, juntos, quebravam a página sob verificação
-Cloudflare. Nesse modo, traps de SDK, regras de host e manipulação de DOM
-continuam ativos; só o transporte deixa de ser interceptado.
-
-Se o skipper carregar *depois* deste script, a interceptação é desinstalada
-no re-arm seguinte (`fetch` e `open`/`send` voltam a ser os que existiam
-antes), em vez de os dois wrappers conviverem. A restauração só acontece
-quando o valor em `window` ainda é o nosso — uma página que trocou `fetch`
-por conta própria não é sobrescrita.
-
-**Nenhum dado é coletado.** Não há rastreamento de quais sites você visita.
 
 ## Requisitos
 
