@@ -9,10 +9,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
       - run: node test/templates.test.js
       # O @updateURL aponta para o main, e o gerenciador so instala quando o
       # @version sobe. Sem isso, mudanca de comportamento chega ao repo mas nunca
