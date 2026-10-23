@@ -36,7 +36,7 @@ com um engine próprio de interceptação de `fetch`, XHR e SDKs carregados por
 | [rule34.xxx](https://rule34.xxx) | Bloqueio geográfico; mostra uma dica de Tor Browser (sem bypass direto) | **verificado** |
 | [SpankBang](https://spankbang.com) | Ver vídeos mesmo deslogado: remove blur/overlay e neutraliza o modal | *não testado* |
 | [Veriff](https://veriff.com) | Funciona em poucos sites. Só em `veriff.com`/`veriff.me`; embed em terceiro não é coberto | *não testado* |
-| [x.com / Twitter](https://x.com) | Posts sensíveis, inclusive citados e fixados; exige estar logado (recurso ainda em BETA no upstream). As regras podem não bater com a API atual — ver limitações | **parcial** |
+| [x.com / Twitter](https://x.com) | Posts sensíveis, inclusive citados e fixados; exige estar logado (recurso ainda em BETA no upstream). Endpoints confirmados no ar; falta ver o efeito num post sensível — ver limitações | **parcial** |
 | [xHamster](https://xhamster.com) | Bloqueio geográfico; mostra uma dica de Tor Browser (sem bypass direto); o gatilho não dispara de toda região | *não testado* |
 
 ### Rótulos de status
@@ -123,39 +123,41 @@ deslogada ou janela privada — o script cobre os popups desse estado. O upstrea
 documenta o mesmo limite na wiki do Reddit (issue #16: "A bypass is highly
 unlikely").
 
-### x.com: as regras miram uma API que o app não usa mais
+### x.com: endpoints confirmados, efeito não observado
 
-As regras casam por substring de URL, então o transporte (fetch ou XHR) não
-importa — o nome do endpoint importa. Observado numa sessão logada no x.com, com
-o script instalado e seus hooks confirmados vivos (`fetchOurs`, `xhrOurs`):
+As regras casam por substring de URL, então o transporte (`fetch` ou XHR) não
+importa — o nome da operação importa. Numa sessão logada, com o script instalado,
+estas chamadas foram observadas:
 
-```
-XHR  https://x.com/i/api/1.1/flow/timeline.json          <- a timeline do home
-XHR  https://x.com/i/api/1.1/friends/following/list.json
-XHR  https://x.com/i/api/graphql/viewer_context.json
-XHR  https://x.com/i/api/graphql/q4Npr1.../ViewerBadgeCounts
-XHR  https://x.com/i/api/fleets/v1/avatar_content
-```
+| Página | Operação GraphQL |
+| --- | --- |
+| Home, aba "Para você" | `HomeTimeline` |
+| Home, aba "Seguindo" | `HomeLatestTimeline` |
+| Perfil | `UserOriginalsTimeline` |
+| Perfil, aba "com respostas" | `UserRepliesTimeline` |
+| Busca | `SearchTimeline` |
+| Post único | `TweetResultByRestId` e `TweetDetail` |
 
-Nenhum tráfego de API passa por `fetch`. A timeline do home é servida por
-`/i/api/1.1/flow/timeline.json`, que nenhuma regra cobre, então nada é
-desblurado ali. Essa parte está fechada.
+A forma da resposta bate com o que o script espera: a home devolve
+`data.home.home_timeline_urt.instructions`, e a timeline de usuário devolve
+`data.user.result.timeline.timeline.instructions`, com instruções
+`TimelineAddEntries`. O campo `type` vem depois de `entries` no JSON; o walker lê
+o objeto inteiro, então a posição não importa.
 
-O que **não** está fechado: os oito endpoints mirados (`TweetResultByRestId`,
-`TweetDetail`, `SearchTimeline`, `HomeTimeline`, `HomeLatestTimeline`,
-`Bookmarks`, `UserOriginalsTimeline`, `UserTweetsAndReplies`) também não
-apareceram — mas só foi observado tráfego da home. Páginas de perfil, busca e
-post único nunca foram visitadas com instrumentação ativa, então essas regras
-não têm evidência a favor nem prova de que estão mortas. Elas ficam no lugar de
-propósito; apagá-las descartaria código possivelmente funcional com base numa
-ausência que não consigo explicar.
+Duas ressalvas:
 
-Consertar o caminho da timeline exige escrever uma reescrita para
-`flow/timeline.json`, o que precisa da forma real da resposta. Essa forma não pôde
-ser capturada: a resposta retorna `status 200` com corpo de tamanho zero em
-`readyState 4`, lido pelo descriptor nativo de `responseText`, porque o app consome
-o body antes do script da página observar. Chutar nomes de campo repetiria
-exatamente a classe de erro que este arquivo existe para documentar.
+- `UserRepliesTimeline` é o antigo `UserTweetsAndReplies`. A operação mudou de
+  nome e a regra antiga não a alcançava. Corrigido na 2.2.1.
+- `Bookmarks` não foi observado: `/i/bookmarks` redireciona para `/i/history`
+  nesta conta, então o endpoint nunca foi chamado. A regra fica no lugar.
+
+O que continua sem prova é o efeito: nenhum post sensível apareceu na timeline
+capturada (`"possibly_sensitive": true` zero vezes), então não deu para ver o
+desblur acontecendo. As regras disparam e o schema bate; o resultado visual num
+post sensível não foi observado. É por isso que o serviço continua **parcial**, e
+não **verificado**.
+
+A home já foi servida por `/i/api/1.1/flow/timeline.json`; hoje ela usa GraphQL.
 
 ### ageverification.org: o upstream cancela um `<script src>`
 

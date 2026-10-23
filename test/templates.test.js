@@ -664,6 +664,41 @@ async function asyncChecks() {
         });
     })();
 
+    // A aba "com respostas" do perfil responde como UserRepliesTimeline, nome
+    // que o upstream ainda não conhecia.
+    await (function () {
+        return new Promise((resolve) => {
+            const payload = JSON.stringify({
+                data: { user: { result: { timeline: { timeline: { instructions: [
+                    { type: 'TimelineClearCache' },
+                    { type: 'TimelineAddEntries', entries: [
+                        { content: { itemContent: { tweet_results: {
+                            result: { __typename: 'TweetWithVisibilityResults',
+                                tweet: { __typename: 'Tweet', legacy: { possibly_sensitive: true } } },
+                        } } } },
+                    ] },
+                ] } } } } },
+            });
+            const originalFetch = async () => new Response(
+                payload, { status: 200, headers: { 'content-type': 'application/json' } });
+            const sandbox = makeSandbox('x.com', originalFetch);
+            loadScript(sandbox, rootSrc);
+            sandbox.window
+                .fetch('https://x.com/i/api/graphql/abc/UserRepliesTimeline?variables=%7B%7D')
+                .then((resp) => resp.json())
+                .then((data) => {
+                    const result = data.data.user.result.timeline.timeline.instructions[1]
+                        .entries[0].content.itemContent.tweet_results.result;
+                    assert(result.__typename === 'Tweet', 'o wrapper tem que sumir no UserRepliesTimeline');
+                    assert(result.legacy.possibly_sensitive === false, 'possibly_sensitive tem que virar false');
+                    passed++;
+                    console.log('OK   x.com desembrulha UserRepliesTimeline');
+                })
+                .catch((e) => { failures++; console.log('FAIL x.com desembrulha UserRepliesTimeline -', e.message); })
+                .then(resolve);
+        });
+    })();
+
     // O upstream 1.3.1 tornou o comportamento do bsky configuravel. Sem popup de
     // add-on, a opcao vem de localStorage. O default tem que continuar 'media'.
     await (function () {
