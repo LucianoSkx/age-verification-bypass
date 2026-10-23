@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Age Verification Bypass
 // @namespace    https://github.com/LucianoSkx/age-verification-bypass
-// @version      2.1.5
-// @description  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, Veriff, AliExpress, Bluesky, Reddit, RedGIFs, SpankBang, Cosxplay, angelogodshackxxx.com, x.com/Twitter, mais dicas Tor para rule34/xHamster. Intercepta fetch, XHR e SDKs carregados por <script>. Nenhum dado é coletado. Port do add-on Firefox do helloyanis; engine de interceptação por xtalia/Hermes Agent.
+// @version      2.2.0
+// @description  Remove popups de verificação de idade em AgeChecker.net, AgeGO, AgeVerif.com, Veriff, AliExpress, Bluesky, Reddit, RedGIFs, SpankBang, MeWe, Cosxplay, angelogodshackxxx.com, x.com/Twitter, mais dicas Tor para rule34/xHamster. Intercepta fetch, XHR e SDKs carregados por <script>. Nenhum dado é coletado. Port do add-on Firefox do helloyanis; engine de interceptação por xtalia/Hermes Agent.
 // @author       helloyanis (original), xtalia/Hermes Agent (engine de interceptação), LucianoSkx (port e correções)
 // @match        *://*/*
 // @run-at       document-start
@@ -40,7 +40,7 @@
     // superfície de interferência (o conflito com o shortlink-skipper, c84fe02,
     // era exatamente isso). Custo conhecido: integração de Veriff/AgeGO/
     // AgeChecker embedada em site de terceiro deixa de ser coberta.
-    var SUPPORTED = /(^|\.)agechecker\.net$|^(verifycdn|myapi)\.agego\.com$|(^|\.)ageverif\.com$|(^|\.)veriff\.(me|com)$|(^|\.)aliexpress\.[a-z.]+$|(^|\.)bsky\.(app|social)$|(^|\.)reddit\.com$|(^|\.)redgifs\.com$|(^|\.)spankbang\.com$|(^|\.)x\.com$|(^|\.)twitter\.com$|(^|\.)cosxplay\.com$|(^|\.)angelogodshackxxx\.com$|(^|\.)rule34\.xxx$|(^|\.)xhamster\.com$/;
+    var SUPPORTED = /(^|\.)agechecker\.net$|^(verifycdn|myapi)\.agego\.com$|(^|\.)ageverif\.com$|(^|\.)veriff\.(me|com)$|(^|\.)aliexpress\.[a-z.]+$|(^|\.)bsky\.(app|social)$|(^|\.)reddit\.com$|(^|\.)redgifs\.com$|(^|\.)spankbang\.com$|(^|\.)x\.com$|(^|\.)twitter\.com$|(^|\.)cosxplay\.com$|(^|\.)angelogodshackxxx\.com$|(^|\.)mewe\.com$|(^|\.)rule34\.xxx$|(^|\.)xhamster\.com$/;
     if (!SUPPORTED.test(HOST)) return;
 
     // ---------------------------------------------------------- utilitários ---
@@ -73,9 +73,10 @@
 
     // Um <style> comum está sujeito ao style-src do CSP da página. GM_addStyle
     // não estava, e é a única capacidade que @grant none abre mão.
-    function addStyle(css) {
+    function addStyle(css, id) {
         try {
             var s = D.createElement('style');
+            if (id) s.id = id;
             s.textContent = css;
             (D.head || D.documentElement).appendChild(s);
         } catch (e) {}
@@ -224,6 +225,9 @@
         var XHR = W.XMLHttpRequest;
         if (!XHR || !XHR.prototype) return;
         var proto = XHR.prototype;
+        // Já são os nossos: re-armar não pode empilhar wrappers, senão o
+        // uninstall só desfaz a última camada.
+        if (proto.open && proto.open.__agebypass && proto.send && proto.send.__agebypass) return;
         var open = proto.open;
         var send = proto.send;
         var nativeText = Object.getOwnPropertyDescriptor(proto, 'responseText');
@@ -412,7 +416,7 @@
 
         var agegoStub = {
             e: [],
-            push: function () { scanAgego(arguments); try { scanAgego.apply(null, arguments); } catch (e) {} return this.e.length; }
+            push: function () { try { scanAgego.apply(null, arguments); } catch (e) {} return this.e.length; }
         };
         trapGlobal('AGEGO', function (v) {
             try { if (v && v.e && v.e.length) scanAgego.apply(null, v.e); } catch (e) {}
@@ -521,69 +525,6 @@
         } catch (e) {}
         whenReady(avUnlock);
         W.addEventListener('load', avUnlock);
-
-        rule(function (u) { return u.indexOf('www.ageverif.com/checker.js') !== -1; }, function () {
-            // document.currentScript é null quando o corpo é injetado, então
-            // procuramos a tag que pediu checker.js.
-            return '(function () {\n' +
-                '  function parseQuery(url) {\n' +
-                '    var params = {}, q = (url || "").split("?")[1] || "";\n' +
-                '    q.split("&").forEach(function (part) {\n' +
-                '      if (!part) return;\n' +
-                '      var kv = part.split("=");\n' +
-                '      params[decodeURIComponent(kv[0])] = kv[1] ? decodeURIComponent(kv[1]) : true;\n' +
-                '    });\n' +
-                '    return params;\n' +
-                '  }\n' +
-                '  function safeCall(name, payload) {\n' +
-                '    if (!name) return;\n' +
-                '    var fn = window[name];\n' +
-                '    if (typeof fn === "function") { try { fn(payload); } catch (e) { console.error("[ageverif]", e); } }\n' +
-                '  }\n' +
-                '  function emit(name, detail) {\n' +
-                '    window.dispatchEvent(new CustomEvent(name, { detail: detail }));\n' +
-                '    var legacy = { "ageverif:load": window.ageverifLoaded, "ageverif:ready": window.ageverifReady, "ageverif:success": window.ageverifSuccess };\n' +
-                '    if (legacy[name]) { try { legacy[name](detail); } catch (e) {} }\n' +
-                '  }\n' +
-                '  function randomString(len) {\n' +
-                '    len = len || 24;\n' +
-                '    var chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", out = "";\n' +
-                '    for (var i = 0; i < len; i++) out += chars.charAt(Math.floor(Math.random() * chars.length));\n' +
-                '    return out;\n' +
-                '  }\n' +
-                '  function createVerification() {\n' +
-                '    var now = Math.floor(Date.now() / 1000), expiresIn = 100 * 365 * 24 * 60 * 60;\n' +
-                '    return { uid: randomString(), country: "FR", countrySubdivision: null, assuranceLevel: "STRICT", ageThreshold: 0, reused: false, expiresAt: now + expiresIn, expiresIn: expiresIn, token: randomString(48) };\n' +
-                '  }\n' +
-                '  function findSrc() {\n' +
-                '    var el = document.currentScript;\n' +
-                '    if (el && el.src) return el.src;\n' +
-                '    var tags = document.querySelectorAll(\'script[src*="ageverif.com/checker.js"]\');\n' +
-                '    return tags.length ? tags[tags.length - 1].src : "";\n' +
-                '  }\n' +
-                '  var params = parseQuery(findSrc());\n' +
-                '  var hasNoStart = Object.prototype.hasOwnProperty.call(params, "nostart");\n' +
-                '  var config = { onload: params.onload, onready: params.onready, onsuccess: params.onsuccess, onclose: params.onclose, onerror: params.onerror };\n' +
-                '  var ageverif = {\n' +
-                '    started: false, events: {},\n' +
-                '    on: function (e, h) { (this.events[e] = this.events[e] || []).push(h); },\n' +
-                '    emitLocal: function (e, p) { (this.events[e] || []).forEach(function (fn) { try { fn(p); } catch (x) {} }); },\n' +
-                '    start: function () {\n' +
-                '      if (this.started) return; this.started = true;\n' +
-                '      var v = createVerification(), ready = { verification: v };\n' +
-                '      this.emitLocal("ready", ready); emit("ageverif:ready", ready); safeCall(config.onready, ready);\n' +
-                '      var ok = { verification: v };\n' +
-                '      this.emitLocal("success", ok); emit("ageverif:success", ok); safeCall(config.onsuccess, ok);\n' +
-                '      this.emitLocal("close", {}); safeCall(config.onclose, {});\n' +
-                '    }\n' +
-                '  };\n' +
-                '  window.ageverif = ageverif;\n' +
-                '  var loadPayload = { verified: true, verification: createVerification() };\n' +
-                '  emit("ageverif:load", loadPayload); safeCall(config.onload, loadPayload);\n' +
-                '  try { window.ageverif.on("ready", function () { ageverif.start(); }); } catch (e) {}\n' +
-                '  if (!hasNoStart) ageverif.start();\n' +
-                '})();';
-        });
 
         log('ageverif.com armado');
     })();
@@ -777,7 +718,7 @@
         var CONTAINER = 'xpromo-nsfw-blocking-container';
         var STYLE_IDS = ['nsfw-bypassable-modal-client-css', 'experiences-client-css'];
 
-        addStyle('.rpl-scroll-lock { overflow: auto !important; }');
+        addStyle('.rpl-scroll-lock { overflow: auto !important; }', 'avb-scroll-lock');
 
         function killShadow(node) {
             try { var p = node.shadowRoot && node.shadowRoot.querySelector('.prompt'); if (p) p.remove(); } catch (e) {}
@@ -789,7 +730,10 @@
             D.querySelectorAll('style[data-testid]').forEach(function (el) {
                 if (STYLE_IDS.indexOf(el.getAttribute('data-testid')) !== -1) el.remove();
             });
-            D.querySelectorAll('style').forEach(function (el) { if (el.textContent && el.textContent.indexOf('.rpl-scroll-lock') !== -1) el.remove(); });
+            D.querySelectorAll('style').forEach(function (el) {
+                if (el.id === 'avb-scroll-lock') return;
+                if (el.textContent && el.textContent.indexOf('.rpl-scroll-lock') !== -1) el.remove();
+            });
             // Mídia borrada nos posts. O Reddit marca o container com o atributo
             // `blurred`; tirar o atributo é o que o desborra. Vem do upstream 1.3.1.
             D.querySelectorAll('shreddit-blurred-container[blurred]').forEach(function (el) {
@@ -799,7 +743,6 @@
 
         clean();
         new MutationObserver(clean).observe(D.documentElement, { childList: true, subtree: true });
-        new MutationObserver(clean).observe(D.head || D.documentElement, { childList: true, subtree: true });
 
         log('reddit armado');
     })();
@@ -822,6 +765,21 @@
             });
 
         log('redgifs armado');
+    })();
+
+    // ---------------------------------------------------------- mewe --------
+    (function () {
+        if (!/(^|\.)mewe\.com$/.test(HOST)) return;
+
+        rule(function (u) { return u.indexOf('mewe.com/api/v2/me/info') !== -1; },
+            function (raw) {
+                return jsonRewrite(raw, function (data) {
+                    if (data && data.ageVerificationData) data.ageVerificationData.verificationStatus = 'not_needed';
+                    return data;
+                });
+            });
+
+        log('mewe armado');
     })();
 
     // ------------------------------------------------------ spankbang ------
@@ -872,36 +830,60 @@
             return tweet;
         }
 
-        function walkEntries(data, instructions) {
-            (instructions || []).forEach(function (instruction) {
-                if (!instruction || instruction.type !== 'TimelineAddEntries') return;
-                (instruction.entries || []).forEach(function (entry) {
-                    var tr = entry && entry.content && entry.content.itemContent && entry.content.itemContent.tweet_results;
-                    if (tr) tr.result = unwrap(tr.result);
-                    var items = entry && entry.content && entry.content.items;
-                    (items || []).forEach(function (item) {
-                        var itr = item && item.item && item.item.itemContent && item.item.itemContent.tweet_results;
-                        if (itr) itr.result = unwrap(itr.result);
-                    });
-                });
+        // O wrapper pode estar na raiz ou dentro de quoted_status_result.
+        function unblurTweetResults(holder) {
+            if (!holder) return;
+            holder.result = unwrap(holder.result);
+            var quoted = holder.result && holder.result.quoted_status_result;
+            if (quoted && quoted.result) quoted.result = unwrap(quoted.result);
+        }
+
+        function walkContent(content) {
+            if (!content) return;
+            unblurTweetResults(content.itemContent && content.itemContent.tweet_results);
+            (content.items || []).forEach(function (item) {
+                unblurTweetResults(item && item.item && item.item.itemContent && item.item.itemContent.tweet_results);
             });
         }
 
-        rule(function (u) { return u.indexOf('x.com/i/api/graphql/') !== -1; }, function (raw, ctx) {
+        function walkInstructions(instructions) {
+            (instructions || []).forEach(function (instruction) {
+                if (!instruction) return;
+                if (instruction.type === 'TimelineAddEntries') {
+                    (instruction.entries || []).forEach(function (entry) {
+                        if (entry) walkContent(entry.content);
+                    });
+                } else if (instruction.type === 'TimelinePinEntry') {
+                    walkContent(instruction.entry && instruction.entry.content);
+                }
+            });
+        }
+
+        // O upstream 1.3.7 separa um walker por endpoint; os cinco formatos de
+        // resposta usam os mesmos instructions, então um só cobre todos.
+        rule(function (u) {
+            return u.indexOf('TweetResultByRestId') !== -1
+                || u.indexOf('TweetDetail') !== -1
+                || u.indexOf('SearchTimeline') !== -1
+                || u.indexOf('HomeTimeline') !== -1
+                || u.indexOf('HomeLatestTimeline') !== -1
+                || u.indexOf('Bookmarks') !== -1
+                || u.indexOf('UserOriginalsTimeline') !== -1
+                || u.indexOf('UserTweetsAndReplies') !== -1;
+        }, function (raw, ctx) {
             var u = ctx.url;
             return jsonRewrite(raw, function (data) {
                 if (u.indexOf('TweetResultByRestId') !== -1) {
-                    var result = data && data.data && data.data.tweetResult && data.data.tweetResult.result;
-                    if (result && result.mediaVisibilityResults && result.tweet) data.data.tweetResult.result = unwrap(result);
-                } else if (u.indexOf('TweetDetail') !== -1) {
-                    var inst = data && data.data && data.data.threaded_conversation_with_injections_v2
-                        && data.data.threaded_conversation_with_injections_v2.instructions;
-                    walkEntries(data, inst);
-                } else if (u.indexOf('UserOriginalsTimeline') !== -1 || u.indexOf('UserTweetsAndReplies') !== -1) {
-                    var t = data && data.data && data.data.user && data.data.user.result && data.data.user.result.timeline
-                        && data.data.user.result.timeline.timeline;
-                    walkEntries(data, t && t.instructions);
+                    unblurTweetResults(data && data.data && data.data.tweetResult);
+                    return data;
                 }
+                var d = data && data.data;
+                if (!d) return data;
+                walkInstructions(d.threaded_conversation_with_injections_v2 && d.threaded_conversation_with_injections_v2.instructions);
+                walkInstructions(d.search_by_raw_query && d.search_by_raw_query.search_timeline && d.search_by_raw_query.search_timeline.timeline && d.search_by_raw_query.search_timeline.timeline.instructions);
+                walkInstructions(d.home && d.home.home_timeline_urt && d.home.home_timeline_urt.instructions);
+                walkInstructions(d.bookmarks_timeline_v2 && d.bookmarks_timeline_v2.timeline && d.bookmarks_timeline_v2.timeline.instructions);
+                walkInstructions(d.user && d.user.result && d.user.result.timeline && d.user.result.timeline.timeline && d.user.result.timeline.timeline.instructions);
                 return data;
             });
         });

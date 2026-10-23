@@ -23,9 +23,10 @@ com um engine de interceptação de `fetch`, XHR e SDKs carregados por `<script>
 - **[Bluesky](https://bsky.app)** — Posts sensíveis sem login (automod + posts autolabelados); mídia revelada ao clicar em "Show" · não testado
 - **[Reddit](https://reddit.com)** — Comunidades NSFW (funciona melhor deslogado; considere o [redlib](https://redlib.catsarch.com/) para um frontend Reddit totalmente privado) · **parcialmente quebrado** — ver abaixo
 - **[RedGIFs](https://www.redgifs.com/)** — Libera o bloqueio geográfico reescrevendo `api.redgifs.com/v2/geolocation` · não testado — o bloqueio é geogateado e não vem ativo do Brasil
+- **[MeWe](https://mewe.com)** — Reescreve `/api/v2/me/info` para `verificationStatus: "not_needed"` · não testado
 - **[SpankBang](https://spankbang.com)** — Ver vídeos mesmo deslogado (remove blur/overlay e neutraliza o modal de verificação) · não testado
 - **[Veriff](https://veriff.com)** — Funciona em poucos sites (não espere que funcione em todos) · não testado — só em veriff.com/veriff.me; integração embutida em site de terceiro não é coberta (gate de host)
-- **[x.com / Twitter](https://x.com)** — **as regras não batem com a API atual** — ver abaixo. Originalmente mirava `TweetResultByRestId`, `TweetDetail`, `UserOriginalsTimeline` e `UserTweetsAndReplies`; exige estar logado (sincronizado com o upstream 1.3.1, ainda BETA lá)
+- **[x.com / Twitter](https://x.com)** — **as regras não batem com a API atual** — ver abaixo. Segue o upstream 1.3.7: `TweetResultByRestId`, `TweetDetail`, `SearchTimeline`, `HomeTimeline`, `HomeLatestTimeline`, `Bookmarks`, `UserOriginalsTimeline` e `UserTweetsAndReplies`, incluindo tweets citados e fixados; exige estar logado (ainda BETA lá)
 - **[Cosxplay](https://cosxplay.com)** — Bloqueia o script de verificação de idade (`age.js`) · **verificado**
 - **[AngeloGodsHack](https://angelogodshackxxx.com)** — Remove o modal de age gate · **verificado**
 - **[rule34.xxx](https://rule34.xxx)** — Bloqueio geográfico — mostra uma dica de Tor Browser (sem bypass direto, igual ao upstream) · **verificado**
@@ -72,6 +73,19 @@ Re-adicionar o style em loop não é solução: trava a aba. O script para de
 responder a execução por completo, e até um script de limpeza estoura timeout.
 Não tente.
 
+### Reddit: conta logada cai no gate Persona
+
+Com a conta logada, o Reddit redireciona o site inteiro para `/age/provide` —
+inclusive `old.reddit.com`, `/r/all.json` e `/api/me.json`. A página embute o
+Persona (`inquiry.withpersona.com`), e a conclusão é validada no servidor:
+chamar a URL de `verification-completed` sem um inquiry concluído devolve
+`Internal Server Error: failed to determine Persona environment`.
+
+Não há bypass client-side para esse gate. Para conteúdo NSFW, use uma sessão
+deslogada ou janela privada — o script cobre os popups desse estado. O upstream
+documenta o mesmo limite na wiki do Reddit (issue #16: "A bypass is highly
+unlikely").
+
 ### x.com: as regras miram uma API que o app não usa mais
 
 As regras casam por substring de URL, então o transporte (fetch ou XHR) não
@@ -104,6 +118,16 @@ ser capturada: a resposta retorna `status 200` com corpo de tamanho zero em
 `readyState 4`, lido pelo descriptor nativo de `responseText`, porque o app consome
 o body antes do script da página observar. Chutar nomes de campo repetiria
 exatamente a classe de erro que este arquivo existe para documentar.
+
+### ageverification.org: o upstream cancela um `<script src>`
+
+O upstream 1.3.5 cobre ageverification.org cancelando a requisição de
+`/inject/script.min.js` no `webRequest`. O código de embed é literalmente
+`<script src="https://www.ageverification.org/inject/script.min.js">`, e
+requisição de `<script src>` não passa por `fetch`/XHR. Userscript não tem
+`webRequest`, então não há equivalente com `@grant none`. A regra não foi
+portada para não repetir o caso do `checker.js` do AgeVerif (código que nunca
+dispara).
 
 ## Como funciona
 

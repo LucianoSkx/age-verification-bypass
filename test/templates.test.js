@@ -95,6 +95,7 @@ const SERVICES = [
     ['bsky', /bsky/],
     ['reddit', /reddit/],
     ['redgifs', /redgifs/],
+    ['mewe', /mewe/],
     ['spankbang', /spankbang/],
     ['x.com', /x\\\.com/],
     ['cosxplay', /cosxplay/],
@@ -123,7 +124,7 @@ for (const [rel, src] of sources) {
         const gate = new RegExp(m[1]);
         for (const host of ['agechecker.net', 'verifycdn.agego.com', 'demo.ageverif.com', 'veriff.com',
             'www.aliexpress.com', 'bsky.app', 'www.reddit.com', 'www.redgifs.com', 'spankbang.com',
-            'x.com', 'twitter.com', 'cosxplay.com', 'angelogodshackxxx.com', 'rule34.xxx', 'xhamster.com']) {
+            'x.com', 'twitter.com', 'cosxplay.com', 'angelogodshackxxx.com', 'mewe.com', 'rule34.xxx', 'xhamster.com']) {
             assert(gate.test(host), `o gate não cobre ${host}`);
         }
         assert(!gate.test('example.com'), 'o gate não pode cobrir host sem regra');
@@ -368,6 +369,15 @@ if (rootSrc) {
         assert(s.window.fetch === first, 're-armar o nosso próprio wrapper tem que ser no-op');
     });
 
+    runRuntime('o re-arm não empilha wrappers de XHR', 'agechecker.net', (s) => {
+        const proto = s.window.XMLHttpRequest.prototype;
+        const firstOpen = proto.open;
+        const firstSend = proto.send;
+        s.window.__timers.forEach((fn) => fn());
+        assert(proto.open === firstOpen && proto.send === firstSend,
+            're-armar os nossos próprios hooks de XHR tem que ser no-op');
+    });
+
     // c84fe02: com o shortlink-skipper ativo na aba, a interceptação de
     // fetch/XHR não instala. A política vive nos guards dos instaladores, então
     // o teste carrega o script já com o global do skipper publicado — é assim
@@ -392,6 +402,11 @@ if (rootSrc) {
         const origSend = sandbox.window.XMLHttpRequest.prototype.send;
         loadScript(sandbox, rootSrc);
         assert(sandbox.window.fetch !== originalFetch, 'pré-condição: o fetch foi patcheado');
+        // O re-arm já rodou antes de o skipper existir: o hook tem que continuar
+        // instalado (e não empilhado) para o uninstall ter o que desfazer.
+        sandbox.window.__timers.forEach((fn) => fn());
+        assert(sandbox.window.XMLHttpRequest.prototype.send !== origSend,
+            'pré-condição: o re-arm desinstalou o XHR sem skipper');
         sandbox.window.__slCfWatch = true;
         sandbox.window.__timers.forEach((fn) => fn());
         assert(sandbox.window.fetch === originalFetch, 'o fetch não voltou ao original');
@@ -557,6 +572,94 @@ async function asyncChecks() {
                     console.log('OK   redgifs desbloqueia o geolocation');
                 })
                 .catch((e) => { failures++; console.log('FAIL redgifs desbloqueia o geolocation -', e.message); })
+                .then(resolve);
+        });
+    })();
+
+    await (function () {
+        return new Promise((resolve) => {
+            const originalFetch = async () => new Response(
+                '{"ageVerificationData":{"verificationStatus":"pending"},"id":7}',
+                { status: 200, headers: { 'content-type': 'application/json' } });
+            const sandbox = makeSandbox('mewe.com', originalFetch);
+            loadScript(sandbox, rootSrc);
+            sandbox.window
+                .fetch('https://mewe.com/api/v2/me/info')
+                .then((resp) => resp.json())
+                .then((data) => {
+                    assert(data.ageVerificationData.verificationStatus === 'not_needed',
+                        'verificationStatus tem que virar not_needed, veio ' + JSON.stringify(data));
+                    assert(data.id === 7, 'o resto do payload tem que ficar intacto');
+                    passed++;
+                    console.log('OK   mewe marca a verificação como not_needed');
+                })
+                .catch((e) => { failures++; console.log('FAIL mewe marca a verificação como not_needed -', e.message); })
+                .then(resolve);
+        });
+    })();
+
+    await (function () {
+        return new Promise((resolve) => {
+            const payload = JSON.stringify({
+                data: { tweetResult: { result: {
+                    __typename: 'TweetWithVisibilityResults',
+                    tweet: {
+                        __typename: 'Tweet',
+                        legacy: { possibly_sensitive: true },
+                        core: { user_results: { result: { profile_metadata: { profile_interstitial_type: 'sensitive' } } } },
+                        quoted_status_result: { result: {
+                            __typename: 'TweetWithVisibilityResults',
+                            tweet: { __typename: 'Tweet', legacy: { possibly_sensitive: true } },
+                        } },
+                    },
+                } } },
+            });
+            const originalFetch = async () => new Response(
+                payload, { status: 200, headers: { 'content-type': 'application/json' } });
+            const sandbox = makeSandbox('x.com', originalFetch);
+            loadScript(sandbox, rootSrc);
+            sandbox.window
+                .fetch('https://x.com/i/api/graphql/abc/TweetResultByRestId?variables=%7B%7D')
+                .then((resp) => resp.json())
+                .then((data) => {
+                    const result = data.data.tweetResult.result;
+                    assert(result.__typename === 'Tweet', 'o wrapper externo tem que sumir');
+                    assert(result.legacy.possibly_sensitive === false, 'possibly_sensitive tem que virar false');
+                    assert(result.quoted_status_result.result.__typename === 'Tweet',
+                        'o tweet citado também tem que ser desembrulhado');
+                    passed++;
+                    console.log('OK   x.com desembrulha tweet citado no TweetResultByRestId');
+                })
+                .catch((e) => { failures++; console.log('FAIL x.com desembrulha tweet citado no TweetResultByRestId -', e.message); })
+                .then(resolve);
+        });
+    })();
+
+    await (function () {
+        return new Promise((resolve) => {
+            const payload = JSON.stringify({
+                data: { user: { result: { timeline: { timeline: { instructions: [
+                    { type: 'TimelinePinEntry', entry: { content: { itemContent: { tweet_results: {
+                        result: { __typename: 'TweetWithVisibilityResults',
+                            tweet: { __typename: 'Tweet', legacy: { possibly_sensitive: true } } },
+                    } } } } },
+                ] } } } } },
+            });
+            const originalFetch = async () => new Response(
+                payload, { status: 200, headers: { 'content-type': 'application/json' } });
+            const sandbox = makeSandbox('x.com', originalFetch);
+            loadScript(sandbox, rootSrc);
+            sandbox.window
+                .fetch('https://x.com/i/api/graphql/abc/UserOriginalsTimeline?variables=%7B%7D')
+                .then((resp) => resp.json())
+                .then((data) => {
+                    const result = data.data.user.result.timeline.timeline.instructions[0]
+                        .entry.content.itemContent.tweet_results.result;
+                    assert(result.__typename === 'Tweet', 'o tweet fixado tem que ser desembrulhado');
+                    passed++;
+                    console.log('OK   x.com desembrulha o tweet fixado (TimelinePinEntry)');
+                })
+                .catch((e) => { failures++; console.log('FAIL x.com desembrulha o tweet fixado (TimelinePinEntry) -', e.message); })
                 .then(resolve);
         });
     })();
