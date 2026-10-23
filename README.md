@@ -104,13 +104,14 @@ Nenhum tráfego de API passa por `fetch`. A timeline do home é servida por
 `/i/api/1.1/flow/timeline.json`, que nenhuma regra cobre, então nada é
 desblurado ali. Essa parte está fechada.
 
-O que **não** está fechado: os quatro endpoints mirados (`TweetResultByRestId`,
-`TweetDetail`, `UserOriginalsTimeline`, `UserTweetsAndReplies`) também não
-apareceram — mas só foi observado tráfego da home. Uma página de perfil e uma
-visualização de post único nunca foram visitadas com instrumentação ativa, então
-essas quatro regras não têm evidência a favor nem prova de que estão mortas. Elas
-ficam no lugar de propósito; apagá-las descartaria código possivelmente
-funcional com base numa ausência que não consigo explicar.
+O que **não** está fechado: os oito endpoints mirados (`TweetResultByRestId`,
+`TweetDetail`, `SearchTimeline`, `HomeTimeline`, `HomeLatestTimeline`,
+`Bookmarks`, `UserOriginalsTimeline`, `UserTweetsAndReplies`) também não
+apareceram — mas só foi observado tráfego da home. Páginas de perfil, busca e
+post único nunca foram visitadas com instrumentação ativa, então essas regras
+não têm evidência a favor nem prova de que estão mortas. Elas ficam no lugar de
+propósito; apagá-las descartaria código possivelmente funcional com base numa
+ausência que não consigo explicar.
 
 Consertar o caminho da timeline exige escrever uma reescrita para
 `flow/timeline.json`, o que precisa da forma real da resposta. Essa forma não pôde
@@ -139,9 +140,9 @@ superfície de interferência.
 Três métodos principais:
 
 ### Reescreve a resposta do servidor
-Intercepta requisições que criariam o popup de verificação de idade e substitui por
-código que envia automaticamente o callback de "verificação aprovada" para o site.
-Exemplo: Bluesky.
+Intercepta a resposta que decide o gate e devolve um payload já aprovado —
+`{"status":"accepted"}` no AgeChecker, `verificationStatus: "not_needed"` no
+MeWe — ou desativa os blurs na config do labeler do Bluesky.
 
 ### Trava os globals do SDK
 Alguns SDKs são carregados por uma tag `<script src>` puro, que nem `fetch` nem
